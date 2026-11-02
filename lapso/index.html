@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lapso · Timer de intervalos para iPhone y Apple Watch</title>
+<meta name="description" content="Lapso es un timer de intervalos para iPhone y Apple Watch: el número lo más grande posible, un color para cada momento y un rectángulo por cada segundo.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="icono-256.png">
+<link rel="apple-touch-icon" href="icono-256.png">
+<meta property="og:title" content="Lapso · Timer de intervalos">
+<meta property="og:description" content="El número, lo más grande posible. Un color para cada momento. Un rectángulo por cada segundo.">
+<meta property="og:image" content="https://sscg.tech/lapso/icono.png">
+<script>document.documentElement.classList.add('js')</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap">
+<link rel="stylesheet" href="../assets/sscg.css">
+<link rel="stylesheet" href="../assets/stage.css">
+<link rel="stylesheet" href="../assets/lapso-ip.css">
+<link rel="stylesheet" href="lapso.css">
+</head>
+<body>
+
+<header class="bar">
+  <a class="bar__mark" href="../"><img src="../assets/marca/sscg-logo-oscuro.svg" alt="SSCG" width="120" height="40"></a>
+  <nav class="bar__links" aria-label="Lapso">
+    <a class="link" href="#sesion" data-i18n="nav.sesion">Cómo funciona</a>
+    <a class="link" href="#reloj" data-i18n="nav.reloj">Apple Watch</a>
+    <a class="link" href="#rutina" data-i18n="nav.rutina">Tu rutina</a>
+    <a class="link" href="#preguntas" data-i18n="nav.faq">Preguntas</a>
+  </nav>
+  <button class="lang" type="button"><b>ES</b> · EN</button>
+  <a class="btn btn--small" href="https://testflight.apple.com/join/W1KBh76C" data-i18n="nav.cta">Probar</a>
+</header>
+
+<main>
+
+<!-- ——— Portada: el nombre, con la O hecha de un timer de verdad ——— -->
+<section class="hero" aria-labelledby="titulo">
+  <h1 id="titulo" class="hero__name" aria-label="Lapso">
+    <span aria-hidden="true">LAPS</span><span class="glyph shutter" data-ui aria-hidden="true">
+      <svg class="glyph__frame" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+      <span class="glyph__num">20</span>
+    </span>
+  </h1>
+  <div class="hero__foot">
+    <div class="hero__app"><img src="icono-256.png" alt="" width="64" height="64"><b>LAPSO</b></div>
+    <p class="hero__lead" data-i18n="hero.lead">Timer de intervalos para iPhone y Apple Watch. El número lo más grande posible, un color para cada momento y un rectángulo por cada segundo.</p>
+    <p class="hero__sig"><span data-i18n="hero.sig">Una app de</span> <span class="sig"><span class="lt">&lt;</span>sscg<span class="sl">/</span><span class="lt">&gt;</span></span></p>
+    <div class="hero__actions">
+      <a class="btn" href="https://testflight.apple.com/join/W1KBh76C" data-i18n="hero.cta">Probar gratis en TestFlight</a>
+      <a class="tlink" href="#sesion" data-i18n="hero.more">Mirá cómo funciona</a>
+    </div>
+  </div>
+</section>
+
+<!-- ——— Escena fija: una sesión entera mientras bajás ——— -->
+<section id="sesion" class="scene sesion" data-beat="0" data-scene="sesion" data-options='{"hold": 5}' aria-labelledby="sesion-t">
+  <div class="scene-stage sesion__stage">
+    <div class="sesion__text">
+      <h2 id="sesion-t" class="display" data-i18n="ses.t">Una sesión entera.</h2>
+      <ol class="beats">
+        <li class="beat" data-b="0"><h3 data-i18n="ses.b0t">Preparate</h3><p data-i18n="ses.b0p">Tres, dos, uno. Arranca con la largada de una carrera: bip, bip, biiip.</p></li>
+        <li class="beat" data-b="1"><h3 data-i18n="ses.b1t">Verde: trabajás</h3><p data-i18n="ses.b1p">El número ocupa todo el ancho. El marco suma un rectángulo por segundo, de golpe, sin animaciones blandas.</p></li>
+        <li class="beat" data-b="2"><h3 data-i18n="ses.b2t">Turquesa: respirás</h3><p data-i18n="ses.b2p">Sigue y Después quedan siempre a la vista. Diez segundos antes de volver, una doble campanita.</p></li>
+        <li class="beat" data-b="3"><h3 data-i18n="ses.b3t">Amarillo, naranja: se termina</h3><p data-i18n="ses.b3p">Las últimas series de cada ejercicio se pintan solas, para que aprietes cuando falta poco.</p></li>
+        <li class="beat" data-b="4"><h3 data-i18n="ses.b4t">Dos toques: pausa</h3><p data-i18n="ses.b4p">Desde la pausa seguís, terminás, silenciás o cambiás cuántas series se pintan. El tiempo en pausa se pone rojo desde el minuto.</p></li>
+        <li class="beat" data-b="5"><h3 data-i18n="ses.b5t">Listo: tu resumen</h3><p data-i18n="ses.b5p">Cuánto entrenaste, descansaste y pausaste, tu pulso por bloque y el tiempo en cada zona.</p></li>
+      </ol>
+    </div>
+    <div class="sesion__device">
+      <div class="ip" data-ui aria-label="Pantalla de entrenamiento de Lapso en el iPhone" data-i18n-attr="aria-label:ses.ui" role="img">
+        <svg class="ip__frame" preserveAspectRatio="none"></svg>
+        <span class="ip__island"></span>
+        <div class="ip__band">
+          <div class="ip__sb"><b>9:41</b><span class="ip__sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="ip__name">PRESS DE BANCA</div>
+          <div class="ip__row"><span class="ip__sq"></span><span class="ip__ser">SERIE 3 DE 6</span></div>
+          <span class="ip__lock"></span>
+          <div class="ip__hr"><i class="ip__bat"></i><span><i class="ip__heart"></i><b class="ip__bpm">148</b></span><span class="ip__zn"><i></i><i></i><i></i><i></i><i></i></span></div>
+        </div>
+        <div class="ip__num">20</div>
+        <div class="ip__rule"></div>
+        <div class="ip__next"><span class="ip__lbl">SIGUE</span><span class="ip__bar"><span class="ip__nextTxt">DESCANSO · 0:50</span></span></div>
+        <div class="ip__map"></div>
+        <div class="ip__after"><i></i><span class="ip__afterTxt">DESPUÉS · APERTURAS CON MANCUERNAS</span></div>
+        <div class="ip__msg">VAMOS</div>
+        <div class="ip__table">
+          <div><b class="ip__t1">34:02</b><span class="ip__lbl">RESTANTE</span></div>
+          <div><b class="ip__t2">22:41</b><span class="ip__lbl">TERMINA</span></div>
+          <div><b class="ip__t3">2/34</b><span class="ip__lbl">SERIES HECHAS</span></div>
+        </div>
+        <div class="ip__ctl"><span class="ip__prev"></span><span class="ip__pz"></span><span class="ip__nx"></span></div>
+        <div class="ip__left">FALTAN 32 SERIES · EJERCICIO 1 DE 8</div>
+        <div class="ip__curve"><span class="ip__cdots"><i></i><i></i><i></i><i></i><i></i></span><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+        <div class="ip__prep">
+          <div class="ip__prepT">PREPARATE</div>
+          <div class="ip__prepN">3</div>
+          <div class="ip__prepR"></div>
+          <div class="ip__prepB">ONE MUSCLE</div>
+          <div class="ip__prepS">ARRANCA · PRESS DE BANCA · 0:20</div>
+        </div>
+        <div class="ip__pause">
+          <div class="pz__head"><b class="pz__t">EN PAUSA</b><b class="pz__time">0:17</b><span class="ip__lock pz__lock"></span></div>
+          <div class="pz__ex">PRESS DE BANCA</div>
+          <div class="pz__num">11</div>
+          <div class="pz__rule"></div>
+          <div class="pz__next"><span class="ip__lbl">SIGUE</span><span class="pz__bar">DESCANSO · 0:50</span></div>
+          <div class="pz__map"></div>
+          <div class="pz__after"><i></i><span class="pz__afterTxt">DESPUÉS · APERTURAS CON MANCUERNAS</span></div>
+          <div class="pz__left">FALTAN 0:09 DE LA SERIE 6</div>
+          <div class="pz__seguir">SEGUIR</div>
+          <div class="pz__terminar">TERMINAR</div>
+          <div class="pz__mute"><i></i><span class="pz__muteTxt">SIN SONIDO</span></div>
+          <div class="pz__lbl pz__lbl1">PARTE DE ARRIBA</div>
+          <div class="pz__opts pz__o1"><span class="on pz__f">FRANJA</span><span class="pz__n">NEGRO</span><span>COLOR</span></div>
+          <div class="pz__lbl pz__lbl2">COLOREAR LAS ÚLTIMAS SERIES</div>
+          <div class="pz__opts pz__o2"><span class="pz__no">NO</span><span><i style="--k:var(--yellow)"></i>1</span><span class="on"><i style="--k:var(--yellow)"></i><i style="--k:var(--orange)"></i>2</span><span><i style="--k:var(--yellow)"></i><i style="--k:var(--orange)"></i><i style="--k:var(--red)"></i>3</span></div>
+          <div class="pz__table">
+            <div><b class="pz__t1">33:31</b><span class="ip__lbl pz__l1">RESTANTE</span></div>
+            <div><b class="pz__t2" style="color:var(--orange)">22:58</b><span class="ip__lbl pz__l2">SI SEGUÍS YA</span></div>
+            <div><b>5/34</b><span class="ip__lbl pz__l3">SERIES HECHAS</span></div>
+          </div>
+        </div>
+        <div class="ip__sum">
+          <div class="sm__top"><b class="sm__t">TERMINASTE</b><span class="sm__share">COMPARTIR</span></div>
+          <div class="sm__name">ONE MUSCLE</div>
+          <div class="sm__line"><span><span class="sm__k">TOTAL</span> 41:30</span><span class="w"><span class="sm__k2">SERIES</span> 11:20</span><span class="r"><span class="sm__k3">DESCANSO</span> 27:30</span><span class="g"><span class="sm__k4">PAUSA</span> 2:40</span></div>
+          <div class="sm__date">LUNES 2/11/2026<br><span class="sm__from">DE 18:02 A 18:44</span></div>
+          <div class="sm__h"><i></i><span class="sm__h1">TIEMPO</span></div>
+          <div class="sm__bar"><i style="--w:27%;--c:var(--accent)">27%</i><i style="--w:66%;--c:var(--rest)">66%</i><i style="--w:7%;--c:#8a8a8a">7%</i></div>
+          <div class="sm__leg"><span><i style="--c:var(--accent)"></i><span class="sm__k2">SERIES</span> 11:20</span><span><i style="--c:var(--rest)"></i><span class="sm__k3">DESCANSO</span> 27:30</span><span><i style="--c:#8a8a8a"></i><span class="sm__k4">PAUSA</span> 2:40</span></div>
+          <div class="sm__h"><i></i><span class="sm__h2">FRECUENCIA CARDÍACA</span></div>
+          <div class="sm__hr">
+            <div><b style="color:var(--orange)">148</b><span class="sm__p1">PROMEDIO · ZONA 3</span></div>
+            <div><b style="color:var(--yellow)">96</b><span class="sm__p2">MENOR · ZONA 2</span></div>
+            <div><b style="color:var(--red)">171</b><span class="sm__p3">MAYOR · ZONA 4</span></div>
+          </div>
+          <div class="sm__zones"><i style="--w:9%;--c:var(--yellow)"></i><i style="--w:38%;--c:var(--orange)">38%</i><i style="--w:45%;--c:var(--red)">45%</i><i style="--w:8%;--c:#ff3dcb"></i></div>
+          <div class="sm__leg sm__zleg"><span><i style="--c:var(--yellow)"></i><span class="sm__z1">BASE</span> 3:44</span><span><i style="--c:var(--orange)"></i><span class="sm__z2">RITMO</span> 15:46</span><span><i style="--c:var(--red)"></i><span class="sm__z3">FUERTE</span> 18:41</span><span><i style="--c:#ff3dcb"></i><span class="sm__z4">MÁXIMO</span> 3:19</span></div>
+          <div class="sm__chart"></div>
+          <div class="sm__h"><i></i><span class="sm__h3">RECUPERACIÓN</span></div>
+          <div class="sm__rec"><b>↓24</b><span class="sm__recTxt">EN EL PRIMER MINUTO<br>MUY BUENA RECUPERACIÓN</span></div>
+          <div class="sm__recbox"><div><b style="color:var(--red)">168</b><span class="sm__r1">AL TERMINAR</span></div><div><b style="color:var(--orange)">144</b><span class="sm__r2">AL MINUTO</span></div><div><b style="color:var(--yellow)">120</b><span class="sm__r3">A LOS 2 MIN</span></div></div>
+          <div class="sm__listo">LISTO</div>
+        </div>
+        <div class="ip__ripple"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ——— Funciones, una por fila, cada una con su pantalla en movimiento ——— -->
+<section class="feat" aria-labelledby="feat-t">
+  <h2 id="feat-t" class="display feat__h" data-in data-i18n="feat.t">Hecho para mirar de reojo.</h2>
+
+  <article class="row" data-in>
+    <div class="row__txt">
+      <h3 class="row__t" data-i18n="f1.t">Un color para cada momento.</h3>
+      <p data-i18n="f1.p">Verde cuando trabajás, turquesa cuando descansás. Sabés qué está pasando antes de leer nada, con la respiración agitada y el teléfono a dos metros.</p>
+    </div>
+    <figure class="row__fig fig-a" data-ui aria-hidden="true">
+      <div class="states"><div class="states__lbl">EJERCICIO</div><div class="states__num">20</div></div>
+    </figure>
+  </article>
+
+  <article class="row" data-in>
+    <div class="row__txt">
+      <h3 class="row__t" data-i18n="f2.t">Un rectángulo por segundo.</h3>
+      <p data-i18n="f2.p">Un marco recorre el borde de la pantalla y sigue sus esquinas. Cada rectángulo se llena de golpe al cumplirse su segundo: el tiempo avanza como en un reloj de verdad.</p>
+    </div>
+    <figure class="row__fig fig-b" data-ui aria-hidden="true">
+      <div class="marco"><svg class="marco__svg" preserveAspectRatio="none"></svg><div class="marco__num">45</div></div>
+    </figure>
+  </article>
+
+  <article class="row" data-in>
+    <div class="row__txt">
+      <h3 class="row__t" data-i18n="f3.t">Las últimas series se pintan.</h3>
+      <p data-i18n="f3.p">Elegí cuántas: ninguna, una, dos o tres. Siempre en el mismo orden, amarillo, naranja y rojo. La primera serie de un ejercicio nunca se pinta. Probalo:</p>
+      <div class="seg" role="radiogroup" aria-label="Colorear las últimas series" data-i18n-attr="aria-label:f3.aria">
+        <button type="button" role="radio" aria-checked="false" data-n="0" data-i18n="f3.no">No</button>
+        <button type="button" role="radio" aria-checked="false" data-n="1">1</button>
+        <button type="button" role="radio" aria-checked="true" data-n="2">2</button>
+        <button type="button" role="radio" aria-checked="false" data-n="3">3</button>
+      </div>
+    </div>
+    <figure class="row__fig fig-c" data-ui aria-hidden="true">
+      <div class="series"><div class="series__lbl">EJERCICIO 1 · 6 SERIES</div><div class="series__row"></div><div class="series__num">20</div></div>
+    </figure>
+  </article>
+
+  <article class="row" data-in>
+    <div class="row__txt">
+      <h3 class="row__t" data-i18n="f4.t">Dos toques, pausa. Deslizás, saltás.</h3>
+      <p data-i18n="f4.p">Dos toques pausan. Deslizar hacia los costados pasa al bloque siguiente o vuelve al anterior. ¿Te equivocaste? Tenés tres segundos para deshacerlo.</p>
+    </div>
+    <figure class="row__fig fig-d" data-ui aria-hidden="true">
+      <div class="gest">
+        <div class="gest__track"><div class="gest__card g-a"><span>EJERCICIO 2</span><b>20</b></div><div class="gest__card g-b"><span>DESCANSO</span><b>50</b></div></div>
+        <div class="gest__undo"><span>DESHACER</span><i></i></div>
+        <div class="gest__finger"></div>
+      </div>
+    </figure>
+  </article>
+
+  <article class="row" data-in>
+    <div class="row__txt">
+      <h3 class="row__t" data-i18n="f5.t">Cada momento suena distinto.</h3>
+      <p data-i18n="f5.p">Se reconocen sin mirar, y cada sonido viene con su vibración en el reloj. Se generan en vivo, no son grabaciones. Tocá para escucharlos:</p>
+    </div>
+    <figure class="row__fig fig-e" data-ui>
+      <div class="sounds">
+        <button type="button" data-snd="warn"><span data-i18n="s.warn">Faltan 10 s</span><i></i></button>
+        <button type="button" data-snd="start"><span data-i18n="s.start">Arranca</span><i></i></button>
+        <button type="button" data-snd="end"><span data-i18n="s.end">Termina la serie</span><i></i></button>
+        <button type="button" data-snd="pause"><span data-i18n="s.pause">Pausa</span><i></i></button>
+        <button type="button" data-snd="fin"><span data-i18n="s.fin">Fin de la rutina</span><i></i></button>
+      </div>
+    </figure>
+  </article>
+
+  <article class="row" data-in>
+    <div class="row__txt">
+      <h3 class="row__t" data-i18n="f6.t">Con el teléfono bloqueado, también.</h3>
+      <p data-i18n="f6.p">La isla dinámica y la pantalla bloqueada muestran el número, el ejercicio y tu pulso. Desde ahí pausás o silenciás, sin abrir la app.</p>
+    </div>
+    <figure class="row__fig fig-f" data-ui aria-hidden="true">
+      <div class="lock">
+        <div class="lock__time">19:12</div>
+        <div class="island"><span class="island__l">EJ 3</span><span class="island__n">14</span></div>
+        <div class="live">
+          <div class="live__top"><span>EJERCICIO 3 · SERIE 2/4</span><span>♥ 152</span></div>
+          <div class="live__mid"><b>14</b><span class="live__btns"><em class="pz"></em><em class="mute"></em></span></div>
+          <div class="live__bar"><i></i></div>
+        </div>
+      </div>
+    </figure>
+  </article>
+</section>
+
+<!-- ——— Apple Watch: deslizá por los estados ——— -->
+<section id="reloj" class="watchsec" aria-labelledby="reloj-t">
+  <div class="watchsec__clause">
+    <h2 id="reloj-t" class="display watchsec__h" aria-live="polite"><span class="ws-clause" data-i18n="w.c0">Muñeca arriba: el número, enorme.</span></h2>
+    <p class="watchsec__p ws-sub" data-i18n="w.s0">El número enorme, la serie y tu pulso al lado, y abajo lo que sigue. La franja de arriba y el marco llevan el color del momento.</p>
+  </div>
+  <div class="watchsec__device">
+    <div class="aw" data-ui role="img" aria-label="Pantalla de Lapso en el Apple Watch" data-i18n-attr="aria-label:w.ui" data-s="0">
+      <svg class="aw__frame" preserveAspectRatio="none"></svg>
+      <div class="aw__band"><span class="aw__name">EJERCICIO 1</span><b class="aw__time">4:46</b></div>
+      <div class="aw__num">16</div>
+      <div class="aw__side"><span class="aw__ser">3/6</span><span class="aw__hr"><i class="aw__heart"></i><b class="aw__bpm">137</b></span><span class="aw__zn"><i></i><i></i><i></i><i></i><i></i></span></div>
+      <div class="aw__rule"></div>
+      <div class="aw__next"><span class="aw__lbl">SIGUE</span><span class="aw__bar">DESCANSO · 0:50</span></div>
+      <div class="aw__sets"><i class="done"></i><i class="done"></i><i class="cur"></i><i></i><i class="y"></i><i class="o"></i></div>
+      <div class="aw__after"><i></i><span class="aw__afterTxt">DESPUÉS · EJERCICIO 2</span></div>
+      <div class="aw__ctl"><span class="aw__prev"></span><span class="aw__pz"></span><span class="aw__nx"></span></div>
+      <div class="aw__curve"><span><i></i><i></i><i></i><i></i><i></i></span><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+        <div class="aw__rows">
+          <div><span>TRANSCURRIDO</span><b>6:31</b></div>
+          <div><span>RESTANTE</span><b>32:19</b></div>
+          <div><span>TERMINA</span><b>19:39</b></div>
+        </div>
+        <div class="aw__rec">
+          <div class="aw__recT">RECUPERACIÓN</div>
+          <div class="aw__recN">−24</div>
+          <div class="aw__recU">LPM EN 1 MIN</div>
+          <svg class="aw__recG" viewBox="0 0 120 50" preserveAspectRatio="none"><polyline points="0,6 10,9 20,14 30,20 40,25 50,29 60,32 70,34 80,36 90,37 100,38 110,39 120,39" /></svg>
+        </div>
+    </div>
+  </div>
+  <div class="watchsec__ctl">
+    <label class="vh" for="ws-range" data-i18n="w.range">Estado del reloj</label>
+    <input id="ws-range" class="range" type="range" min="0" max="3" step="1" value="0">
+    <ol class="ws-names">
+      <li data-i18n="w.n0">Muñeca arriba</li>
+      <li data-i18n="w.n1">Corona</li>
+      <li data-i18n="w.n2">Muñeca abajo</li>
+      <li data-i18n="w.n3">Recuperación</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ——— Lo vivo: escribí tu rutina ——— -->
+<section id="rutina" class="type" aria-labelledby="rutina-t">
+  <h2 id="rutina-t" class="statement" data-in data-i18n="r.t">Escribí tu rutina como la decís.</h2>
+  <div class="type__line" data-ui data-in style="--i:1">
+    <label class="vh" for="rutina-in" data-i18n="r.label">Tu rutina</label>
+    <input id="rutina-in" class="type__in" type="text" value="8 × 20 s / 10 s" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="answer" data-ui aria-live="polite" data-in style="--i:2">
+    <div class="rc">
+      <b class="rc__name">MI RUTINA</b>
+      <div class="rc__meta"></div>
+      <div class="rc__sq"></div>
+      <div class="rc__never"><i></i><span class="rc__nv">NUNCA HECHA</span></div>
+    </div>
+    <div class="rt">
+      <div><b class="a-total">3:50</b><span class="rt__l1">DURACIÓN</span></div>
+      <div><b class="a-ends rt__ends">19:42</b><span class="rt__l2">TERMINÁS SI EMPEZÁS YA</span></div>
+      <div><b class="a-ex">1</b><span class="rt__l3">EJERCICIOS</span></div>
+      <div><b class="a-series">8</b><span class="rt__l4">SERIES</span></div>
+    </div>
+    <p class="answer__msg"></p>
+  </div>
+  <div class="type__ex" data-in style="--i:3">
+    <button type="button" data-ex="Tabata">Tabata</button>
+    <button type="button" data-ex="One Muscle">One Muscle</button>
+    <button type="button" data-ex-es="5 series de 45 s, descanso 15 s" data-ex-en="5 rounds of 45 s, 15 s rest">5 × 45 / 15</button>
+  </div>
+  <p class="type__more" data-in style="--i:4" data-i18n="r.more">En la app armás rutinas con ejercicios, superseries, lado izquierdo y derecho, entrada en calor y notas. Se pasan solas al reloj.</p>
+</section>
+
+<!-- ——— Números ——— -->
+<section class="ledger" aria-labelledby="ledger-t">
+  <h2 id="ledger-t" class="ledger__h" data-in><span class="soft" data-i18n="l.t1">Pocos números.</span> <span data-i18n="l.t2">Los que importan.</span></h2>
+  <dl class="ledger__rows">
+    <div class="lrow" data-in><dt class="lnum"><span class="w">1</span><span class="d"></span></dt><dd data-i18n="l.1">rectángulo del marco por cada segundo que pasa</dd></div>
+    <div class="lrow" data-in style="--i:1"><dt class="lnum"><span class="w">3</span><span class="d"></span></dt><dd data-i18n="l.2">segundos para deshacer un salto de bloque</dd></div>
+    <div class="lrow" data-in style="--i:2"><dt class="lnum"><span class="w">5</span><span class="d"></span></dt><dd data-i18n="l.3">zonas de pulso en el resumen, con el tiempo en cada una</dd></div>
+    <div class="lrow" data-in style="--i:3"><dt class="lnum"><span class="w">60</span><span class="d"></span></dt><dd data-i18n="l.4">segundos midiendo cuánto baja tu pulso al terminar</dd></div>
+    <div class="lrow" data-in style="--i:4"><dt class="lnum"><span class="w">38</span><span class="d">:50</span></dt><dd data-i18n="l.5">One Muscle: 8 ejercicios y 34 series, la rutina con la que nació Lapso</dd></div>
+  </dl>
+</section>
+
+<!-- ——— Preguntas ——— -->
+<section id="preguntas" class="faq" aria-labelledby="faq-t">
+  <h2 id="faq-t" class="display" data-in data-i18n="q.t">Lo que nos preguntan.</h2>
+  <div class="faq__list">
+    <details data-in><summary data-i18n="q1.q">¿Necesito un Apple Watch?</summary><p data-i18n="q1.a">No. Lapso funciona solo en el iPhone. Si tenés reloj, la app del Apple Watch viene incluida: pulso y zonas en vivo, vibración en la muñeca y la medición de recuperación.</p></details>
+    <details data-in style="--i:1"><summary data-i18n="q2.q">¿Sigue contando con la pantalla bloqueada?</summary><p data-i18n="q2.a">Sí. Suena, vibra y se ve en la isla dinámica y en la pantalla bloqueada. Desde ahí podés pausar o silenciar.</p></details>
+    <details data-in style="--i:2"><summary data-i18n="q3.q">¿Guarda mis entrenamientos en Salud?</summary><p data-i18n="q3.a">Sí, si le das permiso. Cada sesión queda como entrenamiento en Salud, con su duración, pulso y calorías.</p></details>
+    <details data-in style="--i:3"><summary data-i18n="q4.q">¿Qué pasa con mi música?</summary><p data-i18n="q4.a">Sigue sonando. Lapso baja el volumen de la música solo durante cada aviso y lo devuelve enseguida.</p></details>
+    <details data-in style="--i:4"><summary data-i18n="q5.q">¿Dónde quedan mis datos?</summary><p data-i18n="q5.a">En tu iPhone, tu reloj y tu iCloud. Lapso no tiene cuentas ni publicidad.</p></details>
+    <details data-in style="--i:5"><summary data-i18n="q6.q">¿Cuánto cuesta?</summary><p data-i18n="q6.a">Los primeros 30 días son gratis. Después, US$1,99 por mes o US$14,99 por año, y cancelás cuando quieras. Incluye todo: iPhone y Apple Watch, pulso, rutinas sin límite, historia y recuperación. Apple te muestra el precio en la moneda de tu país. <a class="tlink" href="../terminos/">Términos de uso</a>.</p></details>
+  </div>
+</section>
+
+<!-- ——— Cierre ——— -->
+<section class="close" aria-labelledby="close-t">
+  <h2 id="close-t" class="close__q"><span data-i18n="c.l1">¿Lo probás</span><span data-i18n="c.l2">hoy?</span></h2>
+  <div class="close__mid">
+    <div class="close__btns">
+      <a class="btn" href="https://testflight.apple.com/join/W1KBh76C" data-i18n="c.b1">Probar en TestFlight</a>
+      <span class="close__or" data-i18n="c.or">o</span>
+      <a class="btn btn--ghost" href="mailto:sscg.tech@gmail.com?subject=Lapso" data-i18n="c.b2">Escribinos</a>
+    </div>
+    <p class="close__note" data-i18n="c.note">TestFlight es la app de Apple para probar apps antes de que salgan. Es gratis.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot__top">
+    <p class="foot__brand"><img src="../assets/marca/sscg-logo-mono-negro.svg" alt="SSCG" width="150" height="50"><span data-i18n="ft.desc">Apps para iPhone, Apple Watch y Mac</span></p>
+    <p data-i18n="ft.state">Lapso · en prueba abierta</p>
+    <a class="tlink" href="#titulo" data-i18n="ft.top">Volver arriba</a>
+  </div>
+  <a class="foot__mail" href="mailto:sscg.tech@gmail.com"><span>sscg.tech</span><span>@gmail.com</span></a>
+  <div class="foot__meta">
+    <span><a class="tlink" href="../" data-i18n="ft.apps">Todas las apps</a> · <a class="tlink" href="privacidad/" data-i18n="ft.priv">Privacidad</a> · <a class="tlink" href="../terminos/" data-i18n="ft.terms">Términos de uso</a></span>
+    <span>© 2026 SSCG LLC</span>
+    <span>Buenos Aires · 2026</span>
+  </div>
+</footer>
+
+<script src="lapso.en.js"></script>
+<script src="../assets/sscg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js"></script>
+<script src="../assets/stage.js"></script>
+<script src="lapso.js"></script>
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSCG · Apps para iPhone, Apple Watch y Mac</title>
+<meta name="description" content="SSCG hace apps para iPhone, Apple Watch y Mac que se usan en movimiento: entrenando, navegando el Delta, esquiando o de viaje.">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="assets/marca/sscg-icono-oscuro.svg">
+<meta property="og:title" content="SSCG">
+<meta property="og:description" content="Apps para usar en movimiento.">
+<script>document.documentElement.classList.add('js')</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700;800&display=swap">
+<link rel="stylesheet" href="assets/sscg.css">
+<link rel="stylesheet" href="assets/stage.css">
+<link rel="stylesheet" href="assets/lapso-ip.css">
+<link rel="stylesheet" href="home.css">
+</head>
+<body>
+
+<header class="bar">
+  <a class="bar__mark" href="./"><img src="assets/marca/sscg-logo-oscuro.svg" alt="SSCG" width="120" height="40"></a>
+  <nav class="bar__links" aria-label="SSCG">
+    <a class="link" href="#apps" data-i18n="nav.apps">Apps</a>
+    <a class="link" href="lapso/">Lapso</a>
+    <a class="link" href="soporte/" data-i18n="nav.soporte">Soporte</a>
+  </nav>
+  <button class="lang" type="button"><b>ES</b> · EN</button>
+  <a class="btn btn--small" href="#apps" data-i18n="nav.cta">Ver las apps</a>
+</header>
+
+<main>
+
+<!-- ——— Portada: los íconos flotan y al bajar se ordenan en un dock ——— -->
+<section class="scene hero" data-scene="hero" data-options='{"hold": 1}' aria-labelledby="titulo">
+  <div class="scene-stage hero__stage">
+    <div class="hero__text">
+      <h1 id="titulo" class="hero__h" data-i18n="hero.h">Apps para usar en movimiento.</h1>
+      <p class="hero__lead" data-i18n="hero.lead">Para iPhone, Apple Watch y Mac. Se usan entrenando, navegando el Delta, esquiando o de viaje, y se entienden de un vistazo.</p>
+      <div class="hero__actions">
+        <a class="btn" href="#apps" data-i18n="hero.cta">Conocé las apps</a>
+        <a class="tlink" href="mailto:sscg.tech@gmail.com" data-i18n="hero.mail">Escribinos</a>
+      </div>
+    </div>
+    <ul class="dock" aria-label="Apps de SSCG" data-i18n-attr="aria-label:hero.dock">
+      <li style="--i:0"><a href="#lapso"><img src="assets/apps/lapso.png" alt="" width="512" height="512"><span>Lapso</span></a></li>
+      <li style="--i:1"><a href="#ropelab"><img src="assets/apps/ropelab.png" alt="" width="512" height="512"><span>ROPE LAB</span></a></li>
+      <li style="--i:2"><a href="#marea"><img src="assets/apps/marea.png" alt="" width="512" height="512"><span>Marea Delta</span></a></li>
+      <li style="--i:3"><a href="#deltamaps"><img src="assets/apps/deltamaps.png" alt="" width="512" height="512"><span>Delta Maps</span></a></li>
+      <li style="--i:4"><a href="#snowbuddy"><img src="assets/apps/snowbuddy.png" alt="" width="512" height="512"><span>Snow Buddy</span></a></li>
+      <li style="--i:5"><a href="#colonia"><img src="assets/apps/colonia.png" alt="" width="512" height="512"><span>Colonia</span></a></li>
+      <li style="--i:6"><a href="#suplemento"><img src="assets/apps/suplemento.png" alt="" width="512" height="512"><span>Tu Suplemento</span></a></li>
+      <li style="--i:7"><a href="#expressgestures"><img src="assets/apps/expressgestures.png" alt="" width="512" height="512"><span>Express Gestures</span></a></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ——— Las apps ——— -->
+<section id="apps" class="apps" aria-labelledby="apps-t">
+  <h2 id="apps-t" class="apps__h" data-in data-i18n="apps.t">Una app para cada momento.</h2>
+
+  <!-- Lapso -->
+  <article id="lapso" class="tile tile--wide t-lapso" data-in>
+    <div class="tile__head">
+      <img class="tile__icon" src="assets/apps/lapso.png" alt="" width="512" height="512">
+      <h3 class="tile__name">Lapso</h3>
+      <p class="tile__line" data-i18n="lapso.l">Intervalos con tu Apple Watch. El número enorme, un color para cada momento.</p>
+      <div class="tile__links">
+        <a class="btn btn--small" href="lapso/" data-i18n="more">Más información</a>
+        <a class="tlink" href="https://testflight.apple.com/join/W1KBh76C" data-i18n="try">Probar en TestFlight</a>
+      </div>
+    </div>
+    <div class="vis v-lapso" data-ui aria-hidden="true">
+      <div class="ip lp-phone">
+        <svg class="ip__frame" preserveAspectRatio="none"></svg>
+        <span class="ip__island"></span>
+        <div class="ip__band">
+          <div class="ip__sb"><b>9:41</b><span class="ip__sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="ip__name">PRESS DE BANCA</div>
+          <div class="ip__row"><span class="ip__sq"><i class="done"></i><i class="cur"></i><i></i><i></i><i></i><i></i></span><span class="ip__ser">SERIE 2 DE 6</span></div>
+          <span class="ip__lock"></span>
+          <div class="ip__hr"><i class="ip__bat"></i><span><i class="ip__heart"></i><b class="ip__bpm">148</b></span><span class="ip__zn"><i></i><i></i><i></i><i></i><i></i></span></div>
+        </div>
+        <div class="ip__num">20</div>
+        <div class="ip__rule"></div>
+        <div class="ip__next"><span class="ip__lbl">SIGUE</span><span class="ip__bar"><span class="ip__nextTxt">DESCANSO · 0:50</span></span></div>
+        <div class="ip__map"></div>
+        <div class="ip__after"><i></i><span class="ip__afterTxt">DESPUÉS · APERTURAS CON MANCUERNAS</span></div>
+      </div>
+      <div class="aw lp-watch">
+        <svg class="aw__frame" preserveAspectRatio="none"></svg>
+        <div class="aw__band"><span class="aw__name">PRESS DE BANCA</span><b class="aw__time">9:41</b></div>
+        <div class="aw__num">20</div>
+        <div class="aw__side"><span class="aw__ser">2/6</span><span class="aw__hr"><i class="aw__heart"></i><b class="aw__bpm">148</b></span><span class="aw__zn"><i></i><i></i><i></i><i></i><i></i></span></div>
+        <div class="aw__rule"></div>
+        <div class="aw__next"><span class="aw__lbl">SIGUE</span><span class="aw__bar">DESCANSO · 0:50</span></div>
+        <div class="aw__sets"><i class="done"></i><i class="cur"></i><i></i><i></i><i class="y"></i><i class="o"></i></div>
+        <div class="aw__after"><i></i><span class="aw__afterTxt">DESPUÉS · APERTURAS</span></div>
+        <div class="aw__ctl"><span class="aw__prev"></span><span class="aw__pz"></span><span class="aw__nx"></span></div>
+        <div class="aw__curve"><span><i></i><i></i><i></i><i></i><i></i></span><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+      </div>
+    </div>
+  </article>
+
+  <!-- ROPE LAB -->
+  <article id="ropelab" class="tile tile--wide t-rope" data-in>
+    <div class="tile__head">
+      <img class="tile__icon" src="assets/apps/ropelab.png" alt="" width="512" height="512">
+      <h3 class="tile__name">ROPE LAB</h3>
+      <p class="tile__line" data-i18n="rope.l">Saltá y olvidate de contar: el reloj y tus AirPods Pro llevan la cuenta por vos.</p>
+      <div class="tile__links">
+        <a class="btn btn--small" href="https://testflight.apple.com/join/TWabWFtB" data-i18n="try">Probar en TestFlight</a>
+      </div>
+    </div>
+    <div class="vis v-rope" data-ui aria-hidden="true">
+      <div class="rp-count"><span class="rp-lbl">SEGUIDOS</span><b class="rp-n">0</b><span class="rp-rec">RÉCORD HOY 212</span></div>
+      <div class="rp-stage">
+        <svg class="rp-svg" viewBox="0 0 200 220">
+          <g class="rp-rope"><ellipse cx="100" cy="112" rx="78" ry="96" /></g>
+          <g class="rp-body"><circle cx="100" cy="46" r="13" /><path d="M100 60 L100 120 M100 72 L74 104 M100 72 L126 104 M100 120 L84 168 M100 120 L116 168" /></g>
+        </svg>
+      </div>
+      <div class="rp-bars"></div>
+    </div>
+  </article>
+
+  <div class="grid">
+    <!-- Marea Delta -->
+    <article id="marea" class="tile t-marea" data-in>
+      <div class="tile__head">
+        <img class="tile__icon" src="assets/apps/marea.png" alt="" width="512" height="512">
+        <h3 class="tile__name">Marea Delta</h3>
+        <p class="tile__line" data-i18n="marea.l">La altura del río en tu zona del Delta, la próxima creciente y un aviso antes de que suba el agua.</p>
+        <div class="tile__links"><a class="tlink" href="https://testflight.apple.com/join/bmWpazyF" data-i18n="try">Probar en TestFlight</a></div>
+      </div>
+      <div class="vis v-marea" data-ui aria-hidden="true">
+        <div class="mr-top"><div><span class="mr-lbl" data-i18n="marea.now">AHORA · TIGRE</span><b class="mr-h">1,42 m</b></div><div class="mr-alert"><span class="mr-lbl" data-i18n="marea.next">PRÓXIMA CRECIENTE</span><b>18:40 · 1,95 m</b></div></div>
+        <svg class="mr-chart" viewBox="0 0 400 160" preserveAspectRatio="none">
+          <line class="mr-alertline" x1="0" y1="38" x2="400" y2="38" />
+          <path class="mr-water" d="" />
+          <path class="mr-line" d="" />
+          <line class="mr-now" x1="120" y1="0" x2="120" y2="160" />
+          <circle class="mr-dot" r="6" cx="120" cy="80" />
+        </svg>
+        <div class="mr-hours"><span>12</span><span>15</span><span>18</span><span>21</span><span>00</span></div>
+      </div>
+    </article>
+
+    <!-- Delta Maps -->
+    <article id="deltamaps" class="tile t-maps" data-in style="--i:1">
+      <div class="tile__head">
+        <img class="tile__icon" src="assets/apps/deltamaps.png" alt="" width="512" height="512">
+        <h3 class="tile__name">Delta Maps</h3>
+        <p class="tile__line" data-i18n="maps.l">Ríos, arroyos y muelles del Delta del Paraná, cómo llegar en lancha y avisos de giro en tu Apple Watch.</p>
+        <div class="tile__links"><a class="tlink" href="https://testflight.apple.com/join/5UTj7qeQ" data-i18n="try">Probar en TestFlight</a></div>
+      </div>
+      <div class="vis v-maps" data-ui aria-hidden="true">
+        <svg class="mp-svg" viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice">
+          <path class="mp-river mp-wide" d="M-20 210 C 80 200, 120 150, 200 150 S 330 120, 420 60" />
+          <path class="mp-river" d="M200 150 C 210 110, 180 70, 210 -10" />
+          <path class="mp-river" d="M90 186 C 70 140, 30 120, -20 110" />
+          <path class="mp-river mp-thin" d="M300 118 C 320 160, 360 190, 420 200" />
+          <path class="mp-route" d="M-10 207 C 80 198, 120 150, 200 150 S 290 140, 300 118 C 320 160, 360 190, 420 200" />
+          <circle class="mp-dock" cx="372" cy="186" r="7" />
+        </svg>
+        <div class="layer"><div class="mp-boat"></div></div>
+        <div class="mp-turn"><b class="mp-arrow"></b><div><span data-i18n="maps.turn">En 300 m, girá a la derecha</span><small>Río Sarmiento</small></div></div>
+        <div class="mp-speed"><b class="mp-kmh">18</b><span>KM/H</span></div>
+      </div>
+    </article>
+
+    <!-- Snow Buddy -->
+    <article id="snowbuddy" class="tile t-snow" data-in>
+      <div class="tile__head">
+        <img class="tile__icon" src="assets/apps/snowbuddy.png" alt="" width="512" height="512">
+        <h3 class="tile__name">Snow Buddy</h3>
+        <p class="tile__line" data-i18n="snow.l">Dónde está cada uno en la montaña, cómo encontrarse y cuándo volver antes de que cierren los medios.</p>
+        <div class="tile__links"><a class="tlink" href="https://testflight.apple.com/join/H7SCEgTx" data-i18n="try">Probar en TestFlight</a></div>
+      </div>
+      <div class="vis v-snow" data-ui aria-hidden="true">
+        <svg class="sn-svg" viewBox="0 0 400 260" preserveAspectRatio="xMidYMid slice">
+          <path class="sn-m3" d="M-10 260 L90 90 L150 160 L240 40 L330 150 L410 80 L410 260 Z" />
+          <path class="sn-snow" d="M240 40 L212 78 L228 72 L240 86 L254 70 L268 78 Z M90 90 L70 124 L86 116 L98 128 L110 112 Z" />
+          <path class="sn-m2" d="M-10 260 L60 170 L130 220 L220 130 L320 230 L410 170 L410 260 Z" />
+          <path class="sn-trail sn-t1" d="M236 60 C 200 110, 260 140, 210 180 S 150 230, 120 250" />
+          <path class="sn-trail sn-t2" d="M300 140 C 280 170, 330 190, 290 220 S 250 245, 230 255" />
+        </svg>
+        <div class="layer"><div class="sn-dot sn-a"><i></i><span data-i18n="snow.you">Vos</span></div><div class="sn-dot sn-b"><i></i><span>Fran</span></div></div>
+        <div class="sn-card"><span data-i18n="snow.last">ÚLTIMO MEDIO</span><b>16:30</b><small data-i18n="snow.left">Te quedan 2 h 10 min</small></div>
+      </div>
+    </article>
+
+    <!-- Colonia Viajes -->
+    <article id="colonia" class="tile t-colonia" data-in style="--i:1">
+      <div class="tile__head">
+        <img class="tile__icon" src="assets/apps/colonia.png" alt="" width="512" height="512">
+        <h3 class="tile__name">Colonia Viajes</h3>
+        <p class="tile__line" data-i18n="col.l">Mapa, chat, gastos, fotos, agenda y juegos del viaje, todo en un lugar para el grupo.</p>
+        <div class="tile__links"><span class="soon" data-i18n="soon">Muy pronto en TestFlight</span></div>
+      </div>
+      <div class="vis v-colonia" data-ui aria-hidden="true">
+        <div class="cl-chat">
+          <p class="cl-b cl-1"><b>Juli</b><span data-i18n="col.m1">¿A qué hora salimos para el lago?</span></p>
+          <p class="cl-b cl-2 cl-me"><span data-i18n="col.m2">10:30, ya está en la agenda</span></p>
+          <p class="cl-b cl-3"><b>Nico</b><span data-i18n="col.m3">Cargué la nafta: $ 48.000</span></p>
+        </div>
+        <div class="cl-cost"><span data-i18n="col.spent">GASTOS DEL GRUPO</span><b class="cl-total">$ 184.500</b><small data-i18n="col.owe">Te deben $ 12.300</small></div>
+      </div>
+    </article>
+
+    <!-- Tu Suplemento -->
+    <article id="suplemento" class="tile t-supl" data-in>
+      <div class="tile__head">
+        <img class="tile__icon" src="assets/apps/suplemento.png" alt="" width="512" height="512">
+        <h3 class="tile__name">Tu Suplemento</h3>
+        <p class="tile__line" data-i18n="supl.l">Armá tu plan de suplementos y recibí un aviso a la hora de cada toma.</p>
+        <div class="tile__links"><a class="tlink" href="https://testflight.apple.com/join/8n6x1Aee" data-i18n="try">Probar en TestFlight</a></div>
+      </div>
+      <div class="vis v-supl" data-ui aria-hidden="true">
+        <div class="sp-ring"><svg viewBox="0 0 100 100"><circle class="sp-bg" cx="50" cy="50" r="42" /><circle class="sp-fg" cx="50" cy="50" r="42" /></svg><b class="sp-n">0/4</b><span data-i18n="supl.today">HOY</span></div>
+        <ul class="sp-list">
+          <li><span class="sp-t">08:00</span><span data-i18n="supl.s1">Magnesio</span><i></i></li>
+          <li><span class="sp-t">08:00</span><span>Vitamina B12</span><i></i></li>
+          <li><span class="sp-t">13:00</span><span>Omega 3</span><i></i></li>
+          <li><span class="sp-t">21:00</span><span data-i18n="supl.s4">Colágeno</span><i></i></li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- Express Gestures -->
+    <article id="expressgestures" class="tile t-eg" data-in style="--i:1">
+      <div class="tile__head">
+        <img class="tile__icon" src="assets/apps/expressgestures.png" alt="" width="512" height="512">
+        <h3 class="tile__name">Express Gestures</h3>
+        <p class="tile__line" data-i18n="eg.l">Para Mac. Gestos de tres y cuatro dedos en el trackpad y atajos de teclado para lo que hacés todo el día.</p>
+        <div class="tile__links"><span class="soon" data-i18n="soon.mac">Muy pronto para descargar</span></div>
+      </div>
+      <div class="vis v-eg" data-ui aria-hidden="true">
+        <div class="eg-pad"><i class="f1"></i><i class="f2"></i><i class="f3"></i><i class="f4"></i></div>
+        <div class="eg-lbl"><span class="eg-g">3 DEDOS · TOQUE</span><b class="eg-a" data-i18n="eg.a1">Click del medio</b></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ——— Cómo las hacemos ——— -->
+<section class="how" aria-labelledby="how-t">
+  <h2 id="how-t" class="how__h" data-in><span data-i18n="how.t1">Sin cuentas.</span> <span data-i18n="how.t2">Sin anuncios.</span></h2>
+  <div class="how__cols">
+    <div data-in><b class="how__big how__num">45</b><h3 data-i18n="how.c1t">Lo importante, enorme.</h3><p data-i18n="how.c1p">El dato que necesitás ocupa toda la pantalla, para leerlo con la respiración agitada o el sol de frente.</p></div>
+    <div data-in style="--i:1"><b class="how__big how__sw"><i></i><i></i><i></i></b><h3 data-i18n="how.c2t">Un color, un significado.</h3><p data-i18n="how.c2p">Cada color dice qué está pasando antes de leer nada. Nunca se usa para decorar.</p></div>
+    <div data-in style="--i:2"><b class="how__big how__buzz"><i></i><i></i><i></i></b><h3 data-i18n="how.c3t">Se entiende sin mirar.</h3><p data-i18n="how.c3p">Cada momento tiene su sonido y su vibración en la muñeca. Sin rastreo: tus datos quedan en tus dispositivos.</p></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot__top">
+    <p class="foot__brand"><img src="assets/marca/sscg-logo-mono-negro.svg" alt="SSCG" width="150" height="50"><span data-i18n="ft.desc">Apps para iPhone, Apple Watch y Mac</span></p>
+    <a class="tlink" href="soporte/" data-i18n="ft.support">Soporte</a>
+    <a class="tlink" href="terminos/" data-i18n="ft.terms">Términos de uso</a>
+    <a class="tlink" href="#titulo" data-i18n="ft.top">Volver arriba</a>
+  </div>
+  <a class="foot__mail" href="mailto:sscg.tech@gmail.com"><span>sscg.tech</span><span>@gmail.com</span></a>
+  <div class="foot__priv">
+    <span data-i18n="ft.priv">Privacidad:</span>
+    <a class="tlink" href="lapso/privacidad/">Lapso</a>
+    <a class="tlink" href="ropelab/privacidad/">ROPE LAB</a>
+    <a class="tlink" href="marea/privacidad/">Marea Delta</a>
+    <a class="tlink" href="deltamaps/privacidad/">Delta Maps</a>
+    <a class="tlink" href="snowbuddy/privacidad/">Snow Buddy</a>
+    <a class="tlink" href="colonia/privacidad/">Colonia Viajes</a>
+    <a class="tlink" href="suplemento/privacidad/">Tu Suplemento</a>
+  </div>
+  <div class="foot__meta">
+    <span>© 2026 SSCG LLC</span>
+    <span>Buenos Aires</span>
+  </div>
+</footer>
+
+<script src="home.en.js"></script>
+<script src="assets/sscg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js"></script>
+<script src="assets/stage.js"></script>
+<script src="home.js"></script>
+</body>
+</html>

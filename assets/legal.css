@@ -1,0 +1,17 @@
+/* Páginas de texto de SSCG: privacidad y soporte. Base en sscg.css. */
+html[lang="es"] [data-lang="en"], html[lang="en"] [data-lang="es"] { display: none; }
+html:not(.js) article[data-lang="en"] { display: block; margin-top: 96px; }
+
+.doc { padding: 120px var(--m) 120px; max-width: calc(68ch + 2 * var(--m)); }
+.doc h1 { font-size: clamp(28px, 3.8vw, 48px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; text-wrap: balance; }
+.doc h1 + p { margin-top: 20px; color: var(--muted); font-size: 16px; }
+.doc h2 { margin-top: 48px; font-size: clamp(22px, 2vw, 28px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+.doc p, .doc ul { margin-top: 14px; font-size: 18px; line-height: 1.6; }
+.doc ul { display: grid; gap: 10px; padding-left: 0; }
+.doc li { padding-left: 22px; position: relative; }
+.doc li::before { content: ""; position: absolute; left: 0; top: .62em; width: 8px; height: 8px; background: var(--brand); }
+.doc strong { font-weight: 700; }
+.doc a { color: var(--link); text-underline-offset: .2em; }
+.dfoot { display: flex; justify-content: space-between; gap: 24px; padding: 32px var(--m) 40px; background: var(--brand); color: var(--on-brand); font-size: 15px; }
+.dfoot .tlink { color: #000; }
+.dfoot__links { display: flex; gap: 24px; }
