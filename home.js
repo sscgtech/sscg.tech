@@ -175,5 +175,5 @@
     $$('.how__sw, .how__buzz').forEach((el) => play(el));
   })();
 
-  if (window.Stage) Stage.init();
+  if (window.Stage) { Stage.smooth(); Stage.init(); }
 })();

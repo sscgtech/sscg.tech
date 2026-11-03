@@ -429,5 +429,5 @@
     });
   });
 
-  if (window.Stage) { Stage.init(); }
+  if (window.Stage) { Stage.smooth(); Stage.init(); }
 })();
