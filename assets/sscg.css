@@ -4,6 +4,13 @@
    JetBrains Mono solo adentro de las pantallas de las apps ([data-ui]). */
 
 /* La letra de los nombres en las apps: el mismo archivo que usa Lapso (Archivo Condensed Black) */
+/* Fuentes del manual de marca SSCG, servidas desde el sitio */
+@font-face { font-family: "Inter"; src: url("fuentes/Inter-Regular.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fuentes/Inter-Medium.woff") format("woff"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fuentes/Inter-SemiBold.woff") format("woff"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fuentes/Inter-Bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("fuentes/JetBrainsMono-Regular.woff") format("woff"); font-weight: 400 500; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("fuentes/JetBrainsMono-Bold.woff") format("woff"); font-weight: 600 900; font-display: swap; }
 @font-face { font-family: "Archivo Lapso"; src: url("fuentes/ArchivoCondensed-Black.ttf") format("truetype"); font-weight: 900; font-display: swap; }
 :root {
   /* Marca SSCG (manual en claude.ai/artifact/RH31hTDQnHi6wR9MMngkj3): carbón, tinta, amarillo y celeste. */
