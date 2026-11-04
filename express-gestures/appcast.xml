@@ -3,6 +3,17 @@
     <channel>
         <title>Express Gestures</title>
         <item>
+            <title>1.0.1</title>
+            <pubDate>Tue, 03 Nov 2026 21:35:08 -0300</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://sscg.tech/express-gestures/descargas/Express-Gestures-1.0.1.zip" length="1774461" type="application/octet-stream" sparkle:edSignature="/tnu5cEYRrA9x/8fbMLXafFYwv9Q/Tp9TdErLJToyfIzjycIk2P7+Ta2zCMXyklINfJciIWpU1w1P/HmM5i9AA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://sscg.tech/express-gestures/descargas/Express%20Gestures2-1.delta" sparkle:deltaFrom="1" length="11402" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976464" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="X25v5ASjsHQBhXBPmS0CYRwMiYJiHzyuN4Ff6hwgnARCF2GpF3+MnxXMapxom5lRVdiO+JCvLcO8qX8xTsFKAQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.0.0</title>
             <pubDate>Tue, 03 Nov 2026 21:27:11 -0300</pubDate>
             <sparkle:version>1</sparkle:version>
