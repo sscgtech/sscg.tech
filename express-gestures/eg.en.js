@@ -10,7 +10,7 @@ window.SSCG_EN = {
   'hero.sig': 'An app by',
   'hero.cta': 'Download for Mac',
   'hero.more': 'How to install',
-  'hero.meta': 'Free · Version 1.0 · macOS 14 Sonoma or later · signed and notarized by Apple',
+  'hero.meta': 'Free · Version 1.0.1 · macOS 14 Sonoma or later · signed and notarized by Apple',
   'pad.a0': 'Middle click',
 
   'tp.t': 'Trackpad',
