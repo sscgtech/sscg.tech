@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Express Gestures · Gestos y atajos para Mac</title>
+<meta name="description" content="Express Gestures agrega gestos de tres y cuatro dedos al trackpad y atajos de teclado a tu Mac: click del medio, volumen, música, brillo, apps en las teclas F y más.">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" href="icono-256.png">
+<link rel="apple-touch-icon" href="icono-256.png">
+<meta property="og:title" content="Express Gestures · Gestos y atajos para Mac">
+<meta property="og:description" content="Click del medio con tres dedos, volumen y música con cuatro, una app en cada tecla F.">
+<meta property="og:image" content="https://sscg.tech/express-gestures/icono.png">
+<script>document.documentElement.classList.add('js')</script>
+<link rel="stylesheet" href="../assets/sscg.css">
+<link rel="stylesheet" href="eg.css">
+</head>
+<body>
+
+<header class="bar">
+  <a class="bar__mark" href="../"><img src="../assets/marca/sscg-logo-oscuro.svg" alt="SSCG" width="120" height="25"></a>
+  <nav class="bar__links" aria-label="Express Gestures">
+    <a class="link" href="#trackpad" data-i18n="nav.trackpad">Trackpad</a>
+    <a class="link" href="#teclado" data-i18n="nav.teclado">Teclado</a>
+    <a class="link" href="#instalar" data-i18n="nav.instalar">Cómo se instala</a>
+    <a class="link" href="#privacidad" data-i18n="nav.priv">Privacidad</a>
+  </nav>
+  <button class="lang" type="button"><b>ES</b> · EN</button>
+  <a class="btn btn--small" href="Express-Gestures.dmg" download data-i18n="nav.cta">Descargar</a>
+</header>
+
+<main>
+
+<section class="hero" aria-labelledby="titulo">
+  <div class="hero__text">
+    <div class="hero__app"><img src="icono-256.png" alt="" width="72" height="72"></div>
+    <h1 id="titulo" class="hero__name">Express Gestures</h1>
+    <p class="hero__lead" data-i18n="hero.lead">Más gestos para el trackpad y atajos para el teclado. Vive en la barra de menús y cada función se prende o se apaga en un click.</p>
+    <p class="hero__sig"><span data-i18n="hero.sig">Una app de</span> <span class="sig"><img src="../assets/marca/sscg-isotipo-oscuro.svg" alt="" width="16" height="16">SSCG</span></p>
+    <div class="hero__actions">
+      <a class="btn" href="Express-Gestures.dmg" download data-i18n="hero.cta">Descargar para Mac</a>
+      <a class="tlink" href="#instalar" data-i18n="hero.more">Cómo se instala</a>
+    </div>
+    <p class="hero__meta" data-i18n="hero.meta">Gratis · Versión 1.0 · macOS 14 Sonoma o posterior · firmada y verificada por Apple</p>
+  </div>
+
+  <figure class="pad" aria-hidden="true">
+    <div class="pad__surface">
+      <i class="pad__f f1"></i><i class="pad__f f2"></i><i class="pad__f f3"></i><i class="pad__f f4"></i>
+      <span class="pad__zone"></span>
+    </div>
+    <figcaption class="pad__lbl"><span class="pad__g">3 DEDOS · TOQUE</span><b class="pad__a" data-i18n="pad.a0">Click del medio</b></figcaption>
+  </figure>
+</section>
+
+<section id="trackpad" class="block" aria-labelledby="trackpad-t">
+  <h2 id="trackpad-t" class="block__t" data-in data-i18n="tp.t">Trackpad</h2>
+  <div class="cards">
+    <article class="card" data-in>
+      <p class="card__k" data-i18n="tp.k3">Tres dedos</p>
+      <dl class="list">
+        <div><dt data-i18n="tp.tap">Toque</dt><dd data-i18n="tp.3tap">Click del botón del medio: abre links en otra pestaña y cierra pestañas.</dd></div>
+        <div><dt data-i18n="tp.updown">Arriba o abajo</dt><dd data-i18n="tp.3ud">Mission Control y App Exposé.</dd></div>
+        <div><dt data-i18n="tp.edge">En el borde derecho</dt><dd data-i18n="tp.3edge">Arriba o abajo cambia el brillo. El ancho de esa zona se elige en los ajustes.</dd></div>
+      </dl>
+    </article>
+    <article class="card" data-in style="--i:1">
+      <p class="card__k" data-i18n="tp.k4">Cuatro dedos</p>
+      <dl class="list">
+        <div><dt data-i18n="tp.tap">Toque</dt><dd data-i18n="tp.4tap">Pausa o reproduce la música.</dd></div>
+        <div><dt data-i18n="tp.updown">Arriba o abajo</dt><dd data-i18n="tp.4ud">Volumen, con el mismo cartel que las teclas del Mac.</dd></div>
+        <div><dt data-i18n="tp.side">A los costados</dt><dd data-i18n="tp.4side">Canción siguiente o anterior. La dirección se elige en los ajustes.</dd></div>
+      </dl>
+    </article>
+  </div>
+</section>
+
+<section id="teclado" class="block" aria-labelledby="teclado-t">
+  <h2 id="teclado-t" class="block__t" data-in data-i18n="kb.t">Teclado, ventanas y Finder</h2>
+  <div class="cards">
+    <article class="card" data-in>
+      <p class="card__k" data-i18n="kb.k">Teclado</p>
+      <dl class="list">
+        <div><dt><kbd>F1</kbd>–<kbd>F12</kbd></dt><dd data-i18n="kb.f">Cada tecla abre la app que elijas. Con <kbd>fn</kbd> siguen siendo las F de siempre.</dd></div>
+        <div><dt data-i18n="kb.cmd">Toque de <kbd>⌘</kbd></dt><dd data-i18n="kb.cmdp">Muestra el Dock escondido.</dd></div>
+        <div><dt><kbd>⌘</kbd> <kbd>2</kbd></dt><dd data-i18n="kb.at">Escribe @. Opcional, viene apagado.</dd></div>
+      </dl>
+    </article>
+    <article class="card" data-in style="--i:1">
+      <p class="card__k" data-i18n="win.k">Ventanas y Finder</p>
+      <dl class="list">
+        <div><dt data-i18n="win.green">Botón verde</dt><dd data-i18n="win.greenp">La ventana ocupa toda la pantalla en el escritorio donde estás. Otro click la devuelve a su tamaño.</dd></div>
+        <div><dt><kbd>⌥</kbd> + <span data-i18n="win.green2">botón verde</span></dt><dd data-i18n="win.full">Pantalla completa en un escritorio nuevo.</dd></div>
+        <div><dt data-i18n="win.enter"><kbd>Enter</kbd> en el Finder</dt><dd data-i18n="win.enterp">Abre la carpeta o el archivo. Con <kbd>⌥</kbd> cambia el nombre.</dd></div>
+        <div><dt data-i18n="win.del"><kbd>⌫</kbd> en el Finder</dt><dd data-i18n="win.delp">Vuelve a la carpeta anterior.</dd></div>
+      </dl>
+    </article>
+  </div>
+  <p class="block__note" data-in data-i18n="kb.note">Todo se prende o se apaga por separado en los ajustes, desde el ícono de la barra de menús.</p>
+</section>
+
+<section id="instalar" class="block" aria-labelledby="instalar-t">
+  <h2 id="instalar-t" class="block__t" data-in data-i18n="in.t">Cómo se instala</h2>
+  <ol class="steps">
+    <li data-in><b>1</b><p data-i18n="in.s1">Abrí el archivo descargado y arrastrá Express Gestures a Aplicaciones.</p></li>
+    <li data-in style="--i:1"><b>2</b><p data-i18n="in.s2">Abrila. Aparece el ícono de una mano en la barra de menús.</p></li>
+    <li data-in style="--i:2"><b>3</b><p data-i18n="in.s3">Dale el permiso de Accesibilidad cuando te lo pida: sin él no puede simular clicks ni teclas.</p></li>
+    <li data-in style="--i:3"><b>4</b><p data-i18n="in.s4">En Ajustes del Sistema › Trackpad › Más gestos, apagá Mission Control y App Exposé para que no choquen con los de la app.</p></li>
+  </ol>
+  <p class="block__note" data-in data-i18n="in.upd">Las actualizaciones llegan solas: una vez por día revisa si hay una versión nueva y te pregunta antes de instalarla.</p>
+  <div class="cta" data-in>
+    <a class="btn" href="Express-Gestures.dmg" download data-i18n="hero.cta">Descargar para Mac</a>
+  </div>
+</section>
+
+<section id="privacidad" class="block block--narrow" aria-labelledby="privacidad-t">
+  <h2 id="privacidad-t" class="block__t" data-in data-i18n="pr.t">Privacidad</h2>
+  <p data-in data-i18n="pr.p1">Express Gestures no junta ni envía ningún dato. Lee el trackpad y el teclado solo para reconocer los gestos, en tu Mac, sin guardar nada.</p>
+  <p data-in data-i18n="pr.p2">La única conexión que hace es revisar una vez por día la lista de versiones en esta página. Se puede apagar en Ajustes › General.</p>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot__top">
+    <p class="foot__brand"><img src="../assets/marca/sscg-logo-mono-negro.svg" alt="SSCG" width="150" height="32"><span data-i18n="ft.desc">Apps para iPhone, Apple Watch y Mac</span></p>
+    <a class="tlink" href="#titulo" data-i18n="ft.top">Volver arriba</a>
+  </div>
+  <a class="foot__mail" href="mailto:sscg.tech@gmail.com?subject=Express%20Gestures"><span>sscg.tech</span><span>@gmail.com</span></a>
+  <div class="foot__meta">
+    <span><a class="tlink" href="../" data-i18n="ft.apps">Todas las apps</a> · <a class="tlink" href="#privacidad" data-i18n="ft.priv">Privacidad</a> · <a class="tlink" href="../terminos/" data-i18n="ft.terms">Términos de uso</a></span>
+    <span>© 2026 SSCG LLC</span>
+  </div>
+</footer>
+
+<script src="eg.en.js"></script>
+<script src="../assets/sscg.js"></script>
+<script src="eg.js"></script>
+</body>
+</html>

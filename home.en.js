@@ -14,6 +14,7 @@ window.SSCG_EN = {
   'try': 'Try on TestFlight',
   'soon': 'Coming soon to TestFlight',
   'soon.mac': 'Coming soon to download',
+  'dl.mac': 'Download for Mac',
 
   'lapso.l': 'Interval timer for Apple Watch. A huge number, one colour for each moment.',
   'rope.l': 'Just jump: your Apple Watch and AirPods Pro keep count for you.',

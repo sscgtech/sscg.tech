@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Express Gestures</title>
+        <item>
+            <title>1.0.0</title>
+            <pubDate>Tue, 03 Nov 2026 21:27:11 -0300</pubDate>
+            <sparkle:version>1</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://sscg.tech/express-gestures/descargas/Express-Gestures-1.0.0.zip" length="1774455" type="application/octet-stream" sparkle:edSignature="OA2iniDtl1zxhc15frnd66Bk8IptdmShu63y0sEhPHAVCk3F3Klv86GR5noR130R9aq6/5qjJn1JLC9KrPsoCg=="/>
+        </item>
+    </channel>
+</rss>
