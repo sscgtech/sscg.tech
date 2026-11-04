@@ -10,7 +10,7 @@ window.SSCG_EN = {
   'hero.sig': 'An app by',
   'hero.cta': 'Download for Mac',
   'hero.more': 'How to install',
-  'hero.meta': 'Free · Version 1.0.1 · macOS 14 Sonoma or later · signed and notarized by Apple',
+  'hero.meta': 'Free · Version 1.0.2 · macOS 14 Sonoma or later · signed and notarized by Apple',
   'pad.a0': 'Middle click',
 
   'tp.t': 'Trackpad',
@@ -42,6 +42,8 @@ window.SSCG_EN = {
   'win.enterp': 'Opens the folder or file. With <kbd>⌥</kbd> it renames it.',
   'win.del': '<kbd>⌫</kbd> in Finder',
   'win.delp': 'Goes back to the previous folder.',
+  'win.split': 'Split screen: the window takes that half and you pick the one for the other half.',
+  'win.updown': 'Fills the screen or minimizes. You choose the keys in the settings.',
   'kb.note': 'Everything turns on or off separately in the settings, from the icon in the menu bar.',
 
   'in.t': 'How to install',
