@@ -611,8 +611,6 @@ $('#aviso').addEventListener('click', () => { $('#aviso').hidden = true; a.error
 // ── Pintar
 
 function render() {
-  const sigIn = $('#apple-sign-in-button');
-  document.body.appendChild(sigIn); sigIn.hidden = true;
   const v = $('#vista'), nav = $('#pestanas');
   let html, conPestanas = false, clase = '';
 
@@ -641,8 +639,6 @@ function render() {
   else if (!ui.cambioDeVista) window.scrollTo(0, scrollAntes);
   if (ui.cambioDeVista) { window.scrollTo(0, 0); ui.cambioDeVista = false; }
 
-  const lugar = $('#lugar-apple');
-  if (lugar && a.cloudkitListo && !a.conectado) { lugar.appendChild(sigIn); sigIn.hidden = false; }
   if (a.error && a.error !== render.ultimoError) avisar(a.error);
   render.ultimoError = a.error;
   if (mostrarRevelacion && conPestanas && !$('.revelacion')) pintarRevelacion();
@@ -698,7 +694,7 @@ function vInicio() {
     : !a.conectado ? `<div class="tarjeta" style="margin-bottom:14px">
         <b>Entrá con tu Apple ID</b>
         <div class="chico" style="margin:4px 0 10px">Es la misma cuenta del iPhone (iCloud). Con eso el grupo sabe que sos vos, en la app o en la web. Si usás Android, sirve cualquier Apple ID; si no tenés, se crea gratis desde la misma ventana.</div>
-        <div id="lugar-apple" class="apple"></div>
+        <div class="apple"><button class="boton apple-propio" data-a="entrar-apple"> Entrar con Apple ID</button></div>
       </div>` : '';
   const listo = a.conectado && !a.cargando;
   const cod = codigoDe(inicioCampos.link);
@@ -722,14 +718,15 @@ function vInicio() {
     </div>
     ${a.cargando ? '<div class="cargando oscuro"></div>' : ''}
     <div class="centro" style="margin-top:18px"><button class="enlace" data-a="demo">✨ Probar con un viaje de ejemplo</button></div>
-    <p class="pie centro" style="margin-top:24px">También está la app para iPhone. <a href="../instalar/">Cómo instalarla</a></p>`;
+    <p class="pie centro" style="margin-top:24px">También está la app para iPhone. <a href="../instalar/">Cómo instalarla</a></p>
+    ${a.conectado ? '<p class="centro"><button class="enlace" style="font-size:13px" data-a="salir-apple">Salir de mi Apple ID</button></p>' : ''}`;
 }
 
 function vConectando() {
   if (a.cloudkitListo && !a.conectado && !a.esDemo) {
     return `<div class="espera"><img class="logo" src="flor.png" alt="" style="margin:0 auto">
       <b style="font-size:20px">Entrá con tu Apple ID</b><div class="chico" style="max-width:320px">Tu sesión se cerró. Volvé a entrar para seguir en ${esc(a.viaje?.nombre ?? 'el viaje')}.</div>
-      <div id="lugar-apple" class="apple"></div>${a.cloudkitError ? `<div class="chico">${esc(a.cloudkitError)}</div>` : ''}
+      <div class="apple"><button class="boton apple-propio" data-a="entrar-apple"> Entrar con Apple ID</button></div>${a.cloudkitError ? `<div class="chico">${esc(a.cloudkitError)}</div>` : ''}
       <button class="boton peligro" style="margin-top:20px" data-a="salir-ya">Salir del viaje</button></div>`;
   }
   return `<div class="espera"><div class="cargando oscuro"></div><div class="chico">Conectando con el grupo…</div>
@@ -1532,6 +1529,8 @@ const acciones = {
   'b-color': b => { borrador.color = +b.dataset.i; render(); },
   empezar: () => { a.perfil = { nombre: borrador.nombre.trim(), emoji: borrador.emoji, color: borrador.color }; guardarLocal(); render(); },
   'cambiar-perfil': () => hojas.perfil(),
+  'entrar-apple': () => entrarConApple(),
+  'salir-apple': () => { if (confirm('¿Salir de tu Apple ID en este navegador?')) salirDeApple(); },
   unirse: () => { const c = codigoDe(inicioCampos.link); if (c) unirse(c); },
   crear: () => crearViaje(inicioCampos.nombre.trim(), inicioCampos.destino.trim()),
   demo: () => { activarDemo(); arrancar(); ui.cambioDeVista = true; render(); },
@@ -1669,6 +1668,35 @@ setInterval(() => { if (bucle && !hoja && ui.pestana !== 1 && document.activeEle
 
 // ───────────────────────── Arranque
 
+// Inicio de sesión con Apple ID en la misma pestaña: Apple vuelve a sscg.tech/colonia/?ckWebAuthToken=… y la llave
+// queda guardada acá. (La ventana emergente de Apple ya no le avisa a la página que la abrió, por eso no se usa.)
+const LLAVE_SESION = 'ckWebAuthToken';
+const almacenSesion = {
+  getToken: () => leerLS(LLAVE_SESION),
+  putToken: (_contenedor, t) => guardarLS(LLAVE_SESION, t || null),
+};
+(function recibirSesion() {
+  const p = new URLSearchParams(location.search), t = p.get('ckWebAuthToken') || p.get('ckSession');
+  if (!t) return;
+  guardarLS(LLAVE_SESION, t);
+  p.delete('ckWebAuthToken'); p.delete('ckSession');
+  history.replaceState(null, '', location.pathname + (p.toString() ? `?${p}` : ''));
+})();
+
+async function entrarConApple() {
+  try {
+    if (ui.codigoLink) guardarLS('codigoPendiente', ui.codigoLink);
+    const r = await fetch(`https://api.apple-cloudkit.com/database/1/${CONTENEDOR}/production/public/users/caller?ckAPIToken=${TOKEN}`);
+    const j = await r.json();
+    if (!j.redirectURL) throw new Error(j.reason || 'Apple no respondió');
+    location.href = j.redirectURL;
+  } catch (e) { avisar(`No se pudo abrir la entrada de Apple: ${mensajeError(e)}`); }
+}
+function salirDeApple() {
+  guardarLS(LLAVE_SESION, null);
+  a.conectado = false; detener(); render();
+}
+
 async function conectarCloudKit() {
   const t0 = ahora();
   while (!window.CloudKit && ahora() - t0 < 15000) await new Promise(r => setTimeout(r, 100));
@@ -1676,17 +1704,15 @@ async function conectarCloudKit() {
   try {
     CloudKit.configure({
       locale: 'es-es',
-      containers: [{
-        containerIdentifier: CONTENEDOR, environment: 'production',
-        apiTokenAuth: { apiToken: TOKEN, persist: true, signInButton: { id: 'apple-sign-in-button', theme: 'black' }, signOutButton: { id: 'apple-sign-out-button', theme: 'black' } },
-      }],
+      services: { authTokenStore: almacenSesion },
+      containers: [{ containerIdentifier: CONTENEDOR, environment: 'production', apiTokenAuth: { apiToken: TOKEN, persist: false } }],
     });
     const c = CloudKit.getDefaultContainer();
     a.nube = new NubeCloudKit(c);
     if (!a.esDemo) a.servidor = a.nube;
-    const id = await c.setUpAuth();
+    const id = leerLS(LLAVE_SESION) ? await c.setUpAuth().catch(() => null) : null;
     a.cloudkitListo = true;
-    if (id) entrar(id); else esperarEntrada(c);
+    if (id) entrar(id); else if (leerLS(LLAVE_SESION)) guardarLS(LLAVE_SESION, null);   // llave vencida
   } catch (e) {
     a.cloudkitListo = true;
     a.cloudkitError = /origin|domain|token|AUTHENTICATION/i.test(String(e?.reason || e?.message || e))
@@ -1694,18 +1720,16 @@ async function conectarCloudKit() {
   }
   render();
 }
-function esperarEntrada(c) {
-  c.whenUserSignsIn().then(id => { entrar(id); render(); }).catch(() => {});
-}
 function entrar(id) {
   a.conectado = true;
   a.nube.yo = id.userRecordName;
+  const pendiente = leerLS('codigoPendiente');
+  if (pendiente) { guardarLS('codigoPendiente', null); if (!ui.codigoLink) { ui.codigoLink = pendiente; inicioCampos.link = pendiente; } }
   if (!a.esDemo) {
     a.yo = id.userRecordName;
     if (a.viajeID) arrancar();
     else if (ui.codigoLink && a.perfil) unirse(ui.codigoLink);
   }
-  a.nube.c.whenUserSignsOut().then(() => { a.conectado = false; if (!a.esDemo) { detener(); } render(); esperarEntrada(a.nube.c); }).catch(() => {});
 }
 
 (function iniciar() {
@@ -1721,5 +1745,6 @@ function entrar(id) {
   // Si llegó con un link y ya tiene perfil, en cuanto entre con su Apple ID pide unirse (ver entrar()).
   const empezar = acciones.empezar;
   acciones.empezar = () => { empezar(); if (ui.codigoLink && a.conectado && !a.viajeID) unirse(ui.codigoLink); };
+  if (!ui.codigoLink && leerLS('codigoPendiente')) { ui.codigoLink = leerLS('codigoPendiente'); inicioCampos.link = ui.codigoLink; }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
