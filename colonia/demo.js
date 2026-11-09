@@ -72,6 +72,9 @@ class Demo {
       const extra = clase === 'llegue' ? { latitud: u.latitud, longitud: u.longitud } : {};
       this.poner('mensaje', { id: `msg-demo-${i}`, texto, fecha: ahora - min * 60000, clase, ...extra }, autor, min);
     });
+    // Avisos automáticos con botón al detalle
+    this.poner('mensaje', { id: 'msg-demo-aviso-1', texto: '🌻 Caro creó la tarea “Comprar hielo y bebidas” para Caro y Lu · hoy', fecha: ahora - 50 * 60000, clase: 'sistema', enlace: 'tarea:t-demo-3' }, 'demo-caro', 50);
+    this.poner('mensaje', { id: 'msg-demo-aviso-2', texto: '🏄 Juli abrió una votación: “¿Dónde cenamos mañana?”', fecha: ahora - 20 * 60000, clase: 'sistema', enlace: 'encuesta:enc-1' }, 'demo-juli', 20);
     // Juegos y puntajes
     const juegos = [['j-truco', 'Truco', '🃏', true], ['j-ping', 'Ping pong', '🏓', true], ['j-golf', 'Mini golf', '⛳️', false], ['j-chinchon', 'Chinchón', '🎴', false]];
     juegos.forEach(([id, nombre, emoji, ganaMayor], i) => this.poner('juego', { id, nombre, emoji, ganaMayor, fecha: ahora + i * 1000 }, yo, 1000));
