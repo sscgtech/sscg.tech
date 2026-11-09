@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["F525N65LJD.com.sgiqueaux.colonia"],
+        "components": [
+          { "/": "/colonia/*", "?": { "c": "?*" }, "comment": "Invitaciones a un viaje de Colonia: con la app instalada se abren en la app" }
+        ]
+      }
+    ]
+  }
+}

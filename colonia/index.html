@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Colonia</title>
+<meta name="description" content="La app del viaje con amigos: mapa, chat, juegos, tareas, gastos, agenda, votaciones y fotos.">
+<meta name="theme-color" content="#F9F5F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131214" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Colonia">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="icono-180.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <main id="vista"></main>
+  <div id="mapa-caja" hidden><div id="mapa"></div></div>
+  <nav id="pestanas" hidden></nav>
+</div>
+<div id="hoja-fondo" hidden><section id="hoja" role="dialog" aria-modal="true"></section></div>
+<div id="aviso" hidden></div>
+<div id="apple-sign-in-button" hidden></div>
+<div id="apple-sign-out-button" hidden></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.apple-cloudkit.com/ck/2/cloudkit.js" async></script>
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
