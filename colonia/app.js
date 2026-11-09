@@ -66,9 +66,9 @@ const distancia = m => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1
 
 const REF_2001 = 978307200000;
 const FECHAS = {
-  viaje: ['inicio', 'fin', 'revelarA'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
+  viaje: ['inicio', 'fin', 'revelarA', 'avisoFecha'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
   juego: ['fecha'], puntaje: ['fecha'], equipos: ['fecha'], tarea: ['dia'], marca: ['fecha'], gasto: ['fecha'],
-  evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'],
+  evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'],
 };
 function codificar(tipo, obj) {
   const o = {};
@@ -76,11 +76,13 @@ function codificar(tipo, obj) {
     if (v === undefined || v === null) continue;   // Swift omite los opcionales vacíos
     o[k] = FECHAS[tipo]?.includes(k) ? (v - REF_2001) / 1000 : v;
   }
+  if (tipo === 'ajustes' && o.viaje) o.viaje = codificar('viaje', o.viaje);   // el viaje va adentro, con sus fechas
   return o;
 }
 function decodificar(tipo, obj) {
   const o = { ...obj };
   for (const k of FECHAS[tipo] || []) if (typeof o[k] === 'number') o[k] = o[k] * 1000 + REF_2001;
+  if (tipo === 'ajustes' && o.viaje) o.viaje = decodificar('viaje', o.viaje);
   return o;
 }
 function aBase64(texto) {
@@ -95,7 +97,10 @@ const deBase64 = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64), c =>
 const Nuevo = {
   mensaje: (texto, clase = 'texto', extra = {}) => ({ id: nuevoID('msg'), autor: '', texto, fecha: ahora(), clase, ...extra }),
   miembro: (codigo, p) => ({ id: `m-${codigo}-${a.yo}`, autor: a.yo, nombre: p.nombre, emoji: p.emoji, color: p.color, codigo, pedido: ahora(), comparteUbicacion: true }),
-  decision: (usuario, aprobado) => ({ id: `d-${a.viajeID}-${usuario}`, autor: '', usuario, aprobado, fecha: ahora() }),
+  // Cada organizador escribe su propia decisión sobre cada persona (en CloudKit cada uno solo puede tocar lo suyo); vale la más nueva.
+  decision: (usuario, aprobado, admin) => ({ id: `d-${a.viajeID}-${usuario}-${a.yo}`, autor: '', usuario, aprobado, admin, fecha: ahora() }),
+  oculto: (registro, oculto) => ({ id: `o-${registro}-${a.yo}`, autor: '', registro, oculto, fecha: ahora() }),
+  ajustes: viaje => ({ id: `a-${a.viajeID}-${a.yo}`, autor: '', viaje, fecha: ahora() }),
   juego: (nombre, emoji, ganaMayor) => ({ id: nuevoID('j'), autor: '', nombre, emoji, ganaMayor, fecha: ahora() }),
   puntaje: (juego, jugador, puntos) => ({ id: nuevoID('p'), autor: '', juego, jugador, puntos, fecha: ahora() }),
   equipos: (titulo, equipos, nombres, parejos) => ({ id: nuevoID('eq'), autor: '', titulo, equipos, nombres, parejos, fecha: ahora() }),
@@ -216,18 +221,23 @@ const a = {
   leidosHasta: leerLS('leidosHasta', 0),
   viaje: null, miembros: {}, decisiones: {}, mensajes: [], ubicaciones: {}, juegos: [], puntajes: [], tareas: [], marcas: [],
   gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [],
+  organizadores: new Set(), ocultos: new Set(), ocultosLista: [],
 
-  get soyAdmin() { return !!this.viaje && this.viaje.autor === this.yo; },
+  /** El que creó el viaje: siempre organiza y no se lo puede sacar. */
+  get creador() { return this.viaje?.autor; },
+  get soyAdmin() { return this.organizadores.has(this.yo); },
+  organiza(u) { return this.organizadores.has(u); },
   estado(u) {
-    if (u === this.viaje?.autor) return 'aprobado';
+    if (u === this.creador) return 'aprobado';
     const d = this.decisiones[u];
-    return !d ? 'pendiente' : d.aprobado ? 'aprobado' : 'rechazado';
+    if (!d) return this.viaje?.autoAprobar ? 'aprobado' : 'pendiente';
+    return d.aprobado ? 'aprobado' : 'rechazado';
   },
   get miEstado() { return this.estado(this.yo); },
   get aprobados() {
-    const adm = this.viaje?.autor;
+    const rango = u => u === this.creador ? 0 : this.organiza(u) ? 1 : 2;
     return Object.values(this.miembros).filter(m => this.estado(m.autor) === 'aprobado')
-      .sort((x, y) => (x.autor === adm ? 0 : 1) - (y.autor === adm ? 0 : 1) || x.nombre.localeCompare(y.nombre));
+      .sort((x, y) => rango(x.autor) - rango(y.autor) || x.nombre.localeCompare(y.nombre));
   },
   get pendientes() { return Object.values(this.miembros).filter(m => this.estado(m.autor) === 'pendiente').sort((x, y) => x.pedido - y.pedido); },
   get rechazados() { return Object.values(this.miembros).filter(m => this.estado(m.autor) === 'rechazado'); },
@@ -301,7 +311,13 @@ async function unirse(codigo) {
     a.viajeID = codigo; guardarLocal();
     ingerir([s]);
     await sincronizar();
-    if (!a.miembros[a.yo]) await enviar('miembro', Nuevo.miembro(codigo, a.perfil));
+    if (!a.miembros[a.yo]) {
+      if (a.viaje?.entradaCerrada) {
+        a.viajeID = null; a.sobres = new Map(); a.desde = null; reconstruir(); guardarLocal();
+        throw new Error('Este viaje no está aceptando gente nueva por ahora. Avisale a quien organiza.');
+      }
+      await enviar('miembro', Nuevo.miembro(codigo, a.perfil));
+    }
     arrancar();
   });
 }
@@ -313,10 +329,52 @@ function actualizarPerfil(p) {
 }
 
 function decidir(u, aprobar) {
-  if (!a.soyAdmin) return;
-  guardar('decision', Nuevo.decision(u, aprobar));
+  if (!a.soyAdmin || u === a.creador) return;
+  const antes = a.estado(u);
+  guardar('decision', Nuevo.decision(u, aprobar, aprobar ? a.organiza(u) : false));
   const m = a.miembros[u];
-  if (aprobar && m) guardar('mensaje', Nuevo.mensaje(`${m.emoji} ${m.nombre} se sumó al viaje`, 'sistema'));
+  if (aprobar && antes !== 'aprobado' && m) guardar('mensaje', Nuevo.mensaje(`${m.emoji} ${m.nombre} se sumó al viaje`, 'sistema'));
+}
+
+/** Nombrar o quitar organizador (lo puede hacer cualquier organizador; al que creó el viaje no se lo saca). */
+function hacerOrganizador(u, si) {
+  if (!a.soyAdmin || u === a.creador) return;
+  guardar('decision', Nuevo.decision(u, true, si));
+  const m = a.miembros[u];
+  if (m) guardar('mensaje', Nuevo.mensaje(si ? `⭐️ ${m.emoji} ${m.nombre} ahora también organiza` : `${m.emoji} ${m.nombre} dejó de organizar`, 'sistema'));
+}
+
+/** Los ajustes del viaje: cada organizador guarda su copia y vale la más nueva. El que creó el viaje además
+ *  actualiza el registro original, así lo ven también las versiones viejas de la app. */
+function guardarViaje(v) {
+  if (!a.soyAdmin) return;
+  const x = { ...v, autor: a.creador };
+  if (a.yo === a.creador) guardar('viaje', x);
+  guardar('ajustes', Nuevo.ajustes(x));
+}
+
+/** Dejar de organizar uno mismo: la decisión cuenta porque cuando la escribe todavía organiza. */
+function hacerOrganizadorPropio() {
+  guardar('decision', Nuevo.decision(a.yo, true, false));
+  const m = a.miembros[a.yo];
+  if (m) guardar('mensaje', Nuevo.mensaje(`${m.emoji} ${m.nombre} dejó de organizar`, 'sistema'));
+}
+
+function ocultar(registro, oculto) {
+  if (!a.soyAdmin) return;
+  guardar('oculto', Nuevo.oculto(registro, oculto));
+}
+
+/** Con "aprobar solo" prendido, el primer organizador que se conecta deja la aprobación guardada,
+ *  así no se pierde si después lo apagan. */
+const aprobadosSolos = new Set();
+function aprobarPendientesSolos() {
+  if (!a.soyAdmin || !a.viaje?.autoAprobar) return;
+  for (const m of Object.values(a.miembros)) {
+    if (m.autor === a.creador || a.decisiones[m.autor] || aprobadosSolos.has(m.autor)) continue;
+    aprobadosSolos.add(m.autor);
+    guardar('decision', Nuevo.decision(m.autor, true, false));
+  }
 }
 
 // ── Sincronización
@@ -342,6 +400,7 @@ async function sincronizar() {
     a.ultimaSincronizacion = ahora();
     if (a.error?.startsWith('Sin conexión con el grupo')) a.error = null;
     ingerir(nuevos);
+    aprobarPendientesSolos();
   } catch (e) {
     a.error = `Sin conexión con el grupo: ${mensajeError(e)}`;
     render();
@@ -399,16 +458,42 @@ function ingerir(nuevos) {
 function reconstruir() {
   const vivos = [...a.sobres.values()].filter(s => !s.borrado);
   const de = tipo => vivos.filter(s => s.tipo === tipo).map(s => ({ ...s.datos, autor: s.autor }));
-  a.viaje = de('viaje').find(v => v.id === a.viajeID) || null;
-  const admin = a.viaje?.autor;
+  const base = de('viaje').find(v => v.id === a.viajeID) || null;
+  const creador = base?.autor;
   a.miembros = {};
   for (const m of de('miembro')) if (!a.miembros[m.autor]) a.miembros[m.autor] = m;
-  a.decisiones = {};
-  for (const d of de('decision').filter(d => d.autor === admin)) {
-    const x = a.decisiones[d.usuario];
-    if (!x || d.fecha > x.fecha) a.decisiones[d.usuario] = d;
+
+  // Organizadores: el creador, y los que un organizador nombró. Vale la decisión más nueva sobre cada persona.
+  const ultimaPor = (lista, clave) => {
+    const r = {};
+    for (const x of lista) if (!r[x[clave]] || x.fecha > r[x[clave]].fecha) r[x[clave]] = x;
+    return r;
+  };
+  const decis = de('decision');
+  const alguna = new Set(creador ? [creador] : []);   // los que alguna vez organizaron
+  for (let cambio = true; cambio;) {
+    cambio = false;
+    for (const d of decis) if (alguna.has(d.autor) && d.admin === true && !alguna.has(d.usuario)) { alguna.add(d.usuario); cambio = true; }
   }
-  const ok = x => a.cuenta(x.autor);
+  let validas = decis.filter(d => alguna.has(d.autor));
+  const previo = ultimaPor(validas, 'usuario'), desde = {};
+  for (const u of alguna) if (u !== creador && previo[u] && !(previo[u].admin && previo[u].aprobado)) desde[u] = previo[u].fecha;
+  // Lo que decidió alguien después de que le sacaron el rol de organizador no cuenta.
+  validas = validas.filter(d => d.autor === creador || desde[d.autor] == null || d.fecha <= desde[d.autor]);
+  a.decisiones = ultimaPor(validas, 'usuario');
+  a.organizadores = new Set(creador ? [creador] : []);
+  for (const d of Object.values(a.decisiones)) if (d.admin && d.aprobado) a.organizadores.add(d.usuario);
+
+  // Ajustes del viaje: el más nuevo de algún organizador; si no hay, el registro original.
+  const ajuste = de('ajustes').filter(x => a.organizadores.has(x.autor) && x.viaje).sort((x, y) => y.fecha - x.fecha)[0];
+  a.viaje = base ? { ...base, ...(ajuste ? ajuste.viaje : {}), id: base.id, autor: creador } : null;
+
+  // Lo que ocultó un organizador (vale la marca más nueva sobre cada cosa)
+  const ocs = ultimaPor(de('oculto').filter(o => a.organizadores.has(o.autor)), 'registro');
+  a.ocultosLista = Object.values(ocs).filter(o => o.oculto);
+  a.ocultos = new Set(a.ocultosLista.map(o => o.registro));
+
+  const ok = x => a.cuenta(x.autor) && !a.ocultos.has(x.id);
   a.mensajes = de('mensaje').filter(ok).sort((x, y) => x.fecha - y.fecha);
   a.ubicaciones = {};
   for (const u of de('ubicacion').filter(u => ok(u) && (a.miembros[u.autor]?.comparteUbicacion ?? true))) {
@@ -624,7 +709,7 @@ function render() {
     else if (ui.pestana === 1) { html = vChat(); clase = 'chat'; }
     else if (ui.pestana === 2) html = ui.juego ? vJuego() : vJuegos();
     else if (ui.pestana === 3) html = vTareas();
-    else html = ui.seccion ? ({ gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, grupo: vGrupo })[ui.seccion]() : vMas();
+    else html = ui.seccion ? ({ gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, grupo: vGrupo, organizar: vOrganizar })[ui.seccion]() : vMas();
   }
 
   const scrollAntes = window.scrollY;
@@ -704,14 +789,14 @@ function vInicio() {
     ${bannerApp()}
     ${ck}
     <div class="tarjeta">
-      <b>📷 Me invitaron</b>
-      <div class="chico" style="margin:4px 0 10px">Escaneá el QR con la cámara del teléfono, tocá el link, o pegá acá el link o el código de 8 letras.</div>
+      <b>🔗 Me invitaron</b>
+      <div class="chico" style="margin:4px 0 10px">Tocá el link que te pasaron, o pegá acá el link o el código de 8 letras.</div>
       <input class="campo" data-campo-i="link" placeholder="sscg.tech/colonia/?c=… o ABCD2345" value="${esc(inicioCampos.link)}" autocapitalize="characters" autocomplete="off">
       <button class="boton ancho" style="margin-top:10px" data-a="unirse" ${listo && cod ? '' : 'disabled'}>Pedir para unirme</button>
     </div>
     <div class="tarjeta">
       <b>⛺️ Organizo yo</b>
-      <div class="chico" style="margin:4px 0 10px">Creás el viaje, invitás con un link o un QR y aprobás a cada uno que pide entrar.</div>
+      <div class="chico" style="margin:4px 0 10px">Creás el viaje, invitás con un link y aprobás a cada uno que pide entrar. Después podés sumar más organizadores.</div>
       <input class="campo" data-campo-i="nombre" placeholder="Nombre del viaje (ej: Bariloche 2027)" value="${esc(inicioCampos.nombre)}" maxlength="40">
       <input class="campo" style="margin-top:8px" data-campo-i="destino" placeholder="Destino (opcional)" value="${esc(inicioCampos.destino)}" maxlength="60">
       <button class="boton ancho" style="margin-top:10px" data-a="crear" ${listo && inicioCampos.nombre.trim() ? '' : 'disabled'}>Crear viaje</button>
@@ -828,6 +913,7 @@ function vMapa() {
         <button data-a="satelite" class="${ui.satelite ? 'si' : ''}" title="Satélite">🛰️</button>
         <button data-a="lugares" class="${ui.verLugares ? 'si' : ''}" title="Lugares de la agenda">📅</button>
       </div></div>
+    ${a.viaje.aviso ? `<div class="mapa-aviso">${avisoFijo()}</div>` : ''}
     <div class="flotante controles" style="bottom:calc(${abajoAlto}px + 57px + var(--abajo))">
       <button data-a="zoom" data-v="1" title="Acercar">＋</button>
       <button data-a="zoom" data-v="-1" title="Alejar">－</button>
@@ -858,7 +944,7 @@ function fichaMapa(u) {
 // ── Chat
 
 function vChat() {
-  let html = titulo('Chat'), anterior = null;
+  let html = titulo('Chat') + avisoFijo(), anterior = null;
   if (!a.mensajes.length) html += vacio('💬', 'Todavía no hay mensajes', 'Escribí el primero o avisá que llegaste.');
   for (const m of a.mensajes) {
     if (!anterior || inicioDia(anterior.fecha) !== inicioDia(m.fecha)) html += `<div class="dia">${fmt(m.fecha, { weekday: 'long', day: 'numeric', month: 'long' })}</div>`;
@@ -881,7 +967,7 @@ function burbuja(m, mostrarNombre) {
   } else cont = esc(m.texto);
   return `<div class="msj ${mio ? 'mio' : ''} ${mostrarNombre ? 'nuevo-autor' : ''}">
     ${mio ? '' : `<span style="visibility:${mostrarNombre ? 'visible' : 'hidden'}">${av(m.autor, 28)}</span>`}
-    <div class="burbuja">${!mio && mostrarNombre ? `<div class="quien" style="color:${a.color(m.autor)}">${esc(a.nombre(m.autor))}</div>` : ''}${cont}<div class="hora">${hora(m.fecha)}</div></div></div>`;
+    <div class="burbuja">${!mio && mostrarNombre ? `<div class="quien" style="color:${a.color(m.autor)}">${esc(a.nombre(m.autor))}</div>` : ''}${cont}<div class="hora">${hora(m.fecha)}${a.soyAdmin && !mio ? ` · <button class="ocultar-msj" data-a="ocultar" data-id="${esc(m.id)}" data-confirmar="¿Ocultar este mensaje para todos?">ocultar</button>` : ''}</div></div></div>`;
 }
 
 const redactar = {
@@ -953,7 +1039,7 @@ function vJuegos() {
 function sorteoPublicado(s) {
   return `<div class="tarjeta" style="margin-top:12px">
     <div class="renglon" style="margin-bottom:8px">${av(s.autor, 24)}<span class="chico" style="flex:1">${esc(a.nombre(s.autor))} sorteó · ${haceCuanto(s.fecha)}${s.parejos ? ' · parejos' : ''}</span></div>
-    <b>🎲 ${esc(s.titulo)}</b>
+    <b>🎲 ${esc(s.titulo)}</b>${botonOcultar(s)}
     <div style="margin-top:8px">${s.equipos.map((eq, i) => tarjetaEquipo(s.nombres[i] || `Equipo ${i + 1}`, eq, color(i * 3))).join('')}</div></div>`;
 }
 const tarjetaEquipo = (nombre, gente, c) => `<div class="equipo" style="--c:${c}"><b>${esc(nombre)}</b><div class="chips">${gente.map(u => `<span class="chip">${av(u, 22)}${esc(a.nombre(u))}</span>`).join('')}</div></div>`;
@@ -967,8 +1053,8 @@ function vJuego() {
     <div class="seccion-t">Posiciones · gana el que ${j.ganaMayor ? 'más' : 'menos'} tiene</div>
     <div class="lista">${t.length ? t.map((f, i) => `<div class="fila"><span class="puesto ${i < 3 ? '' : 'n'}">${i < 3 ? ['🥇', '🥈', '🥉'][i] : `${i + 1}º`}</span>${av(f.jugador, 28)}<span class="crece">${esc(a.nombre(f.jugador))}</span><b class="num">${numero(f.puntos)}</b></div>`).join('') : '<div class="fila chico">Sin puntajes todavía</div>'}</div>
     <div class="seccion-t">Historial</div>
-    <div class="lista">${a.puntajes.filter(p => p.juego === j.id).map(p => `<div class="fila">${av(p.jugador, 24)}<span class="crece">${esc(a.nombre(p.jugador))}</span><span class="num">${p.puntos >= 0 ? '+' : ''}${numero(p.puntos)}</span><span class="mini">${haceCuanto(p.fecha)}</span>${p.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="puntaje" data-id="${esc(p.id)}">✕</button>` : ''}</div>`).join('') || '<div class="fila chico">Nada cargado todavía</div>'}</div>
-    ${j.autor === a.yo ? `<div class="centro" style="margin-top:20px"><button class="boton peligro" data-a="borrar" data-tipo="juego" data-id="${esc(j.id)}" data-confirmar="¿Borrar el juego?">Borrar juego</button></div>` : ''}`;
+    <div class="lista">${a.puntajes.filter(p => p.juego === j.id).map(p => `<div class="fila">${av(p.jugador, 24)}<span class="crece">${esc(a.nombre(p.jugador))}</span><span class="num">${p.puntos >= 0 ? '+' : ''}${numero(p.puntos)}</span><span class="mini">${haceCuanto(p.fecha)}</span>${p.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="puntaje" data-id="${esc(p.id)}">✕</button>` : botonOcultar(p)}</div>`).join('') || '<div class="fila chico">Nada cargado todavía</div>'}</div>
+    ${j.autor === a.yo ? `<div class="centro" style="margin-top:20px"><button class="boton peligro" data-a="borrar" data-tipo="juego" data-id="${esc(j.id)}" data-confirmar="¿Borrar el juego?">Borrar juego</button></div>` : a.soyAdmin ? `<div class="centro" style="margin-top:20px">${botonOcultar(j, '¿Ocultar el juego para todos? Deja de contar en el ranking.')}</div>` : ''}`;
 }
 
 // ── Tareas
@@ -994,7 +1080,7 @@ function filaTarea(t) {
     <span class="crece"><div class="t">${esc(t.titulo)}</div><div class="s">${pila(t.responsables, 20)} ${esc(lista(t.responsables.map(u => a.nombre(u))))}</div>
     ${dia ? `<div class="mini" style="font-weight:600;color:${t.dia != null && esHoy(t.dia) ? 'var(--acento)' : 'var(--tinta-2)'}">${dia}</div>` : ''}</span>
     ${t.responsables.includes(a.yo) && !h ? '<span class="vos">Vos</span>' : ''}
-    ${t.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="tarea" data-id="${esc(t.id)}" data-confirmar="¿Borrar la tarea?">✕</button>` : ''}</div>`;
+    ${t.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="tarea" data-id="${esc(t.id)}" data-confirmar="¿Borrar la tarea?">✕</button>` : botonOcultar(t)}</div>`;
 }
 
 // ── Más
@@ -1012,6 +1098,7 @@ function vMas() {
       ${mos('votaciones', '📊', 'Votaciones', 'var(--violeta)', `${a.encuestas.filter(e => !e.cerrada).length} abiertas`)}
       ${mos('fotos', '🖼️', 'Fotos', 'var(--rosa)', `${a.fotos.length} fotos`)}
       ${mos('grupo', '👥', 'Grupo', 'var(--acento)', a.soyAdmin && pend ? `${pend} esperando ✋` : `${a.aprobados.length} personas`)}
+      ${a.soyAdmin ? mos('organizar', '⭐️', 'Organizar', '#E8920C', a.viaje.entradaCerrada ? 'Entrada pausada' : a.ocultosLista.length ? `${a.ocultosLista.length} ocultas` : 'Entrada, aviso, organizadores') : ''}
     </div>`;
 }
 
@@ -1038,7 +1125,7 @@ function vGastos() {
     <div class="lista">${a.gastos.map(g => `<div class="fila">${av(g.pagador, 32)}<span class="crece"><div class="t">${esc(g.esPago ? `Pago a ${a.nombre(g.entre[0])}` : g.descripcion)}</div>
       <div class="s">${g.esPago ? `${esc(a.nombre(g.pagador))} devolvió plata` : `Pagó ${esc(a.nombre(g.pagador))} · entre ${g.entre.length}`}</div></span>
       <span style="text-align:right"><b class="num" style="color:${g.esPago ? 'var(--verde)' : 'inherit'}">${plata(g.monto, a.moneda)}</b><div class="mini">${haceCuanto(g.fecha)}</div></span>
-      ${g.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="gasto" data-id="${esc(g.id)}" data-confirmar="¿Borrar el gasto?">✕</button>` : ''}</div>`).join('') || '<div class="fila chico">Todavía no hay gastos</div>'}</div>`;
+      ${g.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="gasto" data-id="${esc(g.id)}" data-confirmar="¿Borrar el gasto?">✕</button>` : botonOcultar(g, '¿Ocultar este gasto para todos? Deja de contar en las cuentas. Lo podés volver a mostrar desde Organizar.')}</div>`).join('') || '<div class="fila chico">Todavía no hay gastos</div>'}</div>`;
 }
 
 // ── Agenda
@@ -1063,7 +1150,7 @@ function filaEvento(e) {
       ${e.lugar ? `<div class="s">📍 ${lugarOk ? esc(e.lugar) : 'Lugar secreto 🤫'}</div>` : ''}${e.nota ? `<div class="s">${esc(e.nota)}</div>` : ''}
       <div class="mini">${e.autor === a.yo ? 'Lo cargaste vos' : `Lo cargó ${esc(a.nombre(e.autor))}`} · ${relativo(e.inicio)}</div></span>
     ${ir ? `<a class="icono-b" href="${ir}" target="_blank" rel="noopener" title="Cómo llegar">🧭</a>` : ''}
-    ${e.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="evento" data-id="${esc(e.id)}" data-confirmar="¿Borrar el evento?">✕</button>` : ''}</div>`;
+    ${e.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="evento" data-id="${esc(e.id)}" data-confirmar="¿Borrar el evento?">✕</button>` : botonOcultar(e)}</div>`;
 }
 
 // ── Votaciones
@@ -1092,7 +1179,7 @@ function tarjetaEncuesta(e) {
     }).join('')}
     <div class="renglon" style="margin-top:10px"><span class="mini" style="flex:1">${votaron} de ${a.aprobados.length} votaron · <button class="enlace" style="font-size:11px" data-a="ver-quien" data-id="${esc(e.id)}">ver quién</button></span>
       ${e.autor === a.yo ? `<button class="enlace" style="font-size:13px" data-a="cerrar-encuesta" data-id="${esc(e.id)}">${e.cerrada ? 'Reabrir' : 'Cerrar'}</button>
-        <button class="borrar" data-a="borrar" data-tipo="encuesta" data-id="${esc(e.id)}" data-confirmar="¿Borrar la votación?">Borrar</button>` : ''}</div></div>`;
+        <button class="borrar" data-a="borrar" data-tipo="encuesta" data-id="${esc(e.id)}" data-confirmar="¿Borrar la votación?">Borrar</button>` : botonOcultar(e)}</div></div>`;
 }
 
 // ── Fotos
@@ -1155,7 +1242,7 @@ async function verFoto(id) {
   el.innerHTML = `<img src="data:image/jpeg;base64,${f.miniatura}" alt="">
     <div class="arriba">${av(f.autor, 32)}<div class="crece"><b>${esc(a.nombre(f.autor))}</b><div style="font-size:12px;opacity:.8">${fmt(f.fecha, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>
       <span class="cargando"></span>
-      ${f.autor === a.yo ? '<button data-v="borrar" title="Borrar">🗑</button>' : ''}<button data-v="cerrar" title="Cerrar">✕</button></div>`;
+      ${f.autor === a.yo ? '<button data-v="borrar" title="Borrar">🗑</button>' : a.soyAdmin ? '<button data-v="ocultar" title="Ocultar para todos" style="font-size:14px">Ocultar</button>' : ''}<button data-v="cerrar" title="Cerrar">✕</button></div>`;
   document.body.appendChild(el);
   const img = el.querySelector('img');
   let escala = 1;
@@ -1164,6 +1251,7 @@ async function verFoto(id) {
     const b = e.target.closest('button');
     if (b?.dataset.v === 'cerrar' || e.target === el) el.remove();
     if (b?.dataset.v === 'borrar' && confirm('¿Borrar la foto?')) { borrar('foto', f); el.remove(); }
+    if (b?.dataset.v === 'ocultar' && confirm('¿Ocultar la foto para todos? La podés volver a mostrar desde Organizar.')) { ocultar(f.id, true); el.remove(); }
   });
   const url = a.esDemo ? fotosDemo.get(id) : await a.servidor.archivoURL(id).catch(() => null);
   el.querySelector('.cargando')?.remove();
@@ -1175,20 +1263,38 @@ async function verFoto(id) {
 
 // ── Grupo
 
+function invitacion() {
+  const v = a.viaje;
+  return `<div class="tarjeta invitar">
+      <b>Invitá al grupo</b>
+      <div class="link-invitacion" data-a="copiar-link">${esc(linkInvitacion().replace('https://', ''))}</div>
+      <div class="renglon" style="gap:8px;flex-wrap:wrap">
+        <button class="boton chico" data-a="copiar-link">Copiar link</button>
+        <a class="boton chico" style="background:#25D366" href="https://wa.me/?text=${encodeURIComponent(textoInvitacion())}" target="_blank" rel="noopener">Mandar por WhatsApp</a>
+        ${navigator.share ? '<button class="boton gris chico" data-a="compartir">Compartir…</button>' : ''}
+      </div>
+      <div class="mini" style="margin-top:8px">Código: <b class="num">${esc(a.viajeID)}</b>${v.entradaCerrada ? ' · <b style="color:var(--rojo)">La entrada de gente nueva está pausada</b>' : v.autoAprobar ? ' · Entran solos, sin aprobación' : ''}</div>
+    </div>
+    <p class="pie">El que abre el link ${v.autoAprobar ? 'entra directo' : `queda esperando hasta que ${a.soyAdmin ? 'lo apruebes' : 'un organizador lo apruebe'}`}. Con la app de iPhone se abre en la app; si no, en el navegador (sirve en Android).</p>`;
+}
+const textoInvitacion = () => `Sumate a ${a.viaje?.nombre ?? 'nuestro viaje'} en Colonia 🏕️\n${linkInvitacion()}\n\nSi tenés la app se abre ahí; si no, en el navegador. Si no se abre, en Colonia tocá "Me invitaron" y pegá el código ${a.viajeID}.`;
+
+function filaPersona(m) {
+  const etiqueta = m.autor === a.creador ? '<span class="organiza">Creó el viaje</span>' : a.organiza(m.autor) ? '<span class="organiza">Organiza</span>' : '';
+  const puedo = a.soyAdmin && m.autor !== a.creador;
+  return `<div class="fila">${av(m.autor, 34)}<span class="crece">${esc(m.autor === a.yo ? `${m.nombre} (vos)` : m.nombre)} ${etiqueta}</span>
+    ${a.ubicaciones[m.autor] ? `<span class="mini">${haceCuanto(a.ubicaciones[m.autor].fecha)}</span>` : ''}
+    ${puedo ? `<button class="icono-b" data-a="persona" data-u="${esc(m.autor)}" aria-label="Opciones">⋯</button>` : ''}</div>`;
+}
+
 function vGrupo() {
   const notis = 'Notification' in window ? Notification.permission : 'no';
   return `${titulo('Grupo', '', volverA('volver-mas', 'Más'))}
-    <div class="tarjeta"><div class="qr-caja"><div class="qr" data-a="qr-grande">${qrHTML(linkInvitacion())}</div>
-      <div><b>Invitá al grupo</b><div class="codigo" style="margin:4px 0 8px">${esc(a.viajeID)}</div><button class="boton chico" data-a="compartir">Mandar link</button></div></div></div>
-    <p class="pie">Los que escaneen el QR o abran el link quedan esperando hasta que ${a.soyAdmin ? 'los apruebes' : 'el organizador los apruebe'}. Con la app se abre en la app; sin la app, en esta web.</p>
-    ${a.pendientes.length ? `<div class="seccion-t">Quieren sumarse</div><div class="lista">${a.pendientes.map(m => `<div class="fila">${av(m.autor, 36)}<span class="crece"><div class="t">${esc(m.nombre)}</div><div class="s">Pidió ${haceCuanto(m.pedido)}</div>
-      ${m.codigo !== a.viajeID ? '<div class="mini" style="color:orange">⚠️ Entró con un código distinto</div>' : ''}</span>
-      ${a.soyAdmin ? `<button class="no-b" data-a="decidir" data-u="${esc(m.autor)}" data-v="0" aria-label="Rechazar">✕</button><button class="ok-b" data-a="decidir" data-u="${esc(m.autor)}" data-v="1" aria-label="Aprobar">✓</button>` : '<span class="chico">Esperando</span>'}</div>`).join('')}</div>` : ''}
+    ${invitacion()}
+    ${a.pendientes.length ? `<div class="seccion-t">Quieren sumarse</div>${listaPendientes()}` : ''}
     <div class="seccion-t">En el viaje · ${a.aprobados.length}</div>
-    <div class="lista">${a.aprobados.map(m => `<div class="fila">${av(m.autor, 34)}<span class="crece">${esc(m.autor === a.yo ? `${m.nombre} (vos)` : m.nombre)} ${m.autor === a.viaje.autor ? '<span class="organiza">Organiza</span>' : ''}</span>
-      ${a.ubicaciones[m.autor] ? `<span class="mini">${haceCuanto(a.ubicaciones[m.autor].fecha)}</span>` : ''}
-      ${a.soyAdmin && m.autor !== a.yo ? `<button class="borrar" data-a="decidir" data-u="${esc(m.autor)}" data-v="0" data-confirmar="¿Sacar a ${esc(m.nombre)} del viaje?">Sacar</button>` : ''}</div>`).join('')}</div>
-    ${a.soyAdmin && a.rechazados.length ? `<div class="seccion-t">Rechazados</div><div class="lista">${a.rechazados.map(m => `<div class="fila"><span class="crece">${esc(m.emoji)} ${esc(m.nombre)}</span><button class="enlace" data-a="decidir" data-u="${esc(m.autor)}" data-v="1">Aprobar</button></div>`).join('')}</div>` : ''}
+    <div class="lista">${a.aprobados.map(filaPersona).join('')}</div>
+    ${a.soyAdmin ? '<p class="pie">Tocá ⋯ en alguien para nombrarlo organizador o sacarlo del viaje. Lo demás está en Más → Organizar.</p>' : ''}
     <div class="seccion-t">Yo</div>
     <div class="lista">
       <button class="fila" style="width:100%;text-align:left" data-a="editar-perfil">${av(a.yo, 34)}<span class="crece" style="color:var(--acento)">Cambiar nombre, emoji o color</span></button>
@@ -1196,17 +1302,79 @@ function vGrupo() {
       ${notis === 'default' ? '<button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="notis">🔔 Avisarme de mensajes nuevos</button>' : ''}
     </div>
     <div class="lista" style="margin-top:16px">
-      ${a.soyAdmin ? '<button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="editar-viaje">Editar el viaje (nombre, destino, moneda, sorpresa, Drive)</button>' : ''}
+      ${a.soyAdmin && a.yo !== a.creador ? '<button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="dejar-organizar">Dejar de organizar</button>' : ''}
       <button class="fila" style="width:100%;text-align:left;color:var(--rojo)" data-a="salir" >${a.esDemo ? 'Salir del viaje de ejemplo' : 'Salir del viaje'}</button>
     </div>
     <p class="pie">${a.ultimaSincronizacion ? `Sincronizado ${haceCuanto(a.ultimaSincronizacion)}${a.esDemo ? ' · modo ejemplo' : ''}` : ''}</p>`;
 }
 
-function qrHTML(texto, grande = false) {
-  if (!window.qrcode) return '';
-  const q = qrcode(0, 'M'); q.addData(texto); q.make();
-  return q.createImgTag(grande ? 10 : 4, 0);
+function listaPendientes() {
+  return `<div class="lista">${a.pendientes.map(m => `<div class="fila">${av(m.autor, 36)}<span class="crece"><div class="t">${esc(m.nombre)}</div><div class="s">Pidió ${haceCuanto(m.pedido)}</div>
+    ${m.codigo !== a.viajeID ? '<div class="mini" style="color:orange">⚠️ Entró con un código distinto</div>' : ''}</span>
+    ${a.soyAdmin ? `<button class="no-b" data-a="decidir" data-u="${esc(m.autor)}" data-v="0" aria-label="Rechazar">✕</button><button class="ok-b" data-a="decidir" data-u="${esc(m.autor)}" data-v="1" aria-label="Aprobar">✓</button>` : '<span class="chico">Esperando</span>'}</div>`).join('')}</div>`;
 }
+
+// ── Organizar (solo organizadores)
+
+/** Qué es algo que se ocultó, para mostrarlo en la lista. */
+function descripcion(id) {
+  const s = a.sobres.get(id);
+  if (!s) return { ico: '❔', texto: 'Algo que ya no está' };
+  const d = s.datos, quien = a.nombre(s.autor);
+  const t = {
+    mensaje: ['💬', `“${d.texto}”`], foto: ['🖼️', 'Una foto'], gasto: ['💲', `${d.descripcion} · ${plata(d.monto ?? 0, a.moneda)}`],
+    tarea: ['📋', d.titulo], evento: ['📅', d.titulo], encuesta: ['📊', d.pregunta], juego: ['🎮', d.nombre],
+    puntaje: ['🎯', `${numero(d.puntos ?? 0)} puntos de ${a.nombre(d.jugador)}`], equipos: ['🎲', d.titulo],
+  }[s.tipo] || ['•', s.tipo];
+  return { ico: t[0], texto: t[1], quien };
+}
+
+function vOrganizar() {
+  const v = a.viaje;
+  const orgs = [...a.organizadores].filter(u => a.miembros[u]);
+  return `${titulo('Organizar', '', volverA('volver-mas', 'Más'))}
+    <p class="pie" style="margin-top:-8px;margin-bottom:12px">Esto lo ven solo los organizadores.</p>
+
+    <div class="seccion-t">Entrada de gente</div>
+    <div class="tarjeta">
+      <label class="interruptor" style="padding-top:0"><span>Aceptar gente nueva<div class="mini">Apagado: el link no deja pedir para entrar.</div></span><input type="checkbox" data-a="entrada" ${v.entradaCerrada ? '' : 'checked'}></label>
+      <label class="interruptor" style="padding-bottom:0"><span>Aprobar solos a los que entren con el link<div class="mini">Sin esperar a que un organizador los acepte.</div></span><input type="checkbox" data-a="auto-aprobar" ${v.autoAprobar ? 'checked' : ''}></label>
+    </div>
+    ${a.pendientes.length ? `<div class="seccion-t">Quieren sumarse · ${a.pendientes.length}</div>${listaPendientes()}` : ''}
+
+    <div class="seccion-t">Aviso fijo arriba del chat y del mapa</div>
+    <div class="tarjeta">
+      ${v.aviso ? `<div class="aviso-fijo" style="margin:0 0 10px">📌 ${esc(v.aviso)}</div><div class="renglon" style="gap:8px"><button class="boton chico" data-a="aviso">Cambiar</button><button class="boton gris chico" data-a="sacar-aviso">Sacar el aviso</button></div>`
+        : '<div class="chico" style="margin-bottom:10px">Ej: "Mañana salimos 8 am de la casa".</div><button class="boton chico" data-a="aviso">Escribir un aviso</button>'}
+    </div>
+
+    <div class="seccion-t">Organizadores · ${orgs.length} <button class="enlace der" style="font-size:13px" data-a="nombrar">＋ Nombrar</button></div>
+    <div class="lista">${orgs.map(u => filaPersona(a.miembros[u])).join('')}</div>
+    <p class="pie">Cualquier organizador puede aprobar gente, nombrar o quitar organizadores, editar el viaje y ocultar cosas. Al que creó el viaje no se lo puede quitar.</p>
+
+    <div class="seccion-t">El viaje</div>
+    <div class="lista"><button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="editar-viaje">Editar nombre, destino, moneda, sorpresa y fotos en Drive ›</button></div>
+
+    <div class="seccion-t">Cosas ocultas · ${a.ocultosLista.length}</div>
+    ${a.ocultosLista.length ? `<div class="lista">${a.ocultosLista.sort((x, y) => y.fecha - x.fecha).map(o => {
+      const d = descripcion(o.registro);
+      return `<div class="fila"><span style="font-size:20px">${d.ico}</span><span class="crece"><div class="t">${esc(d.texto)}</div><div class="s">${d.quien ? `De ${esc(d.quien)} · ` : ''}la ocultó ${esc(a.nombre(o.autor))} ${haceCuanto(o.fecha)}</div></span>
+        <button class="enlace" style="font-size:13px" data-a="mostrar" data-id="${esc(o.registro)}">Mostrar</button></div>`;
+    }).join('')}</div>` : '<p class="pie">Nada oculto. Para ocultar algo de otro (un mensaje, una foto, un gasto, una tarea…) tocá “Ocultar” al lado.</p>'}
+
+    ${a.rechazados.length ? `<div class="seccion-t">Rechazados</div><div class="lista">${a.rechazados.map(m => `<div class="fila"><span class="crece">${esc(m.emoji)} ${esc(m.nombre)}</span><button class="enlace" data-a="decidir" data-u="${esc(m.autor)}" data-v="1">Aprobar</button></div>`).join('')}</div>` : ''}`;
+}
+
+/** El aviso fijo arriba del chat y del mapa. */
+function avisoFijo() {
+  const v = a.viaje;
+  if (!v?.aviso) return '';
+  return `<div class="aviso-fijo">📌 ${esc(v.aviso)}${v.avisoAutor ? `<div class="mini">${esc(a.nombre(v.avisoAutor))}${v.avisoFecha ? ` · ${haceCuanto(v.avisoFecha)}` : ''}</div>` : ''}</div>`;
+}
+
+/** Botón "Ocultar" para un organizador sobre lo de otro (lo propio se borra). */
+const botonOcultar = (x, confirmar = '¿Ocultarlo para todos? Lo podés volver a mostrar desde Organizar.') =>
+  a.soyAdmin && x.autor !== a.yo ? `<button class="borrar" style="color:var(--tinta-2)" data-a="ocultar" data-id="${esc(x.id)}" data-confirmar="${esc(confirmar)}">Ocultar</button>` : '';
 
 // ── Revelación del destino sorpresa
 
@@ -1491,7 +1659,7 @@ const hojas = {
           if (r[0]) { v.latitud = r[0].lat; v.longitud = r[0].lon; }
         }
         v.nombre = v.nombre.trim();
-        guardar('viaje', v);
+        guardarViaje(v);
       },
     });
     $('#hoja').addEventListener('change', function chk(ev) {
@@ -1514,12 +1682,51 @@ const hojas = {
     });
   },
 
-  qr() {
+  aviso() {
+    const e = { texto: a.viaje.aviso ?? '' };
     abrirHoja({
-      titulo: a.viaje.nombre, estado: {},
-      cuerpo: () => `<div class="qr-grande">${qrHTML(linkInvitacion(), true)}</div><p class="centro chico">Escaneá con la cámara del teléfono</p><p class="centro codigo">${esc(a.viajeID)}</p>`,
+      titulo: 'Aviso fijo', estado: e, okTexto: 'Publicar', puedeOk: () => e.texto.trim().length > 0,
+      cuerpo: () => `<textarea class="campo" data-hc="texto" maxlength="200" placeholder="Ej: Mañana salimos 8 am de la casa">${esc(e.texto)}</textarea>
+        <p class="pie">Se ve arriba del chat y del mapa para todos, hasta que lo saques o lo cambies.</p>`,
+      ok: () => {
+        guardarViaje({ ...a.viaje, aviso: e.texto.trim(), avisoFecha: ahora(), avisoAutor: a.yo });
+        guardar('mensaje', Nuevo.mensaje(`📌 ${e.texto.trim()}`));
+      },
     });
   },
+
+  persona(u) {
+    const m = a.miembros[u];
+    if (!m) return;
+    const org = a.organiza(u);
+    abrirHoja({
+      titulo: m.nombre, estado: {},
+      cuerpo: () => `<div class="centro" style="margin:6px 0 14px">${av(u, 64)}<div class="chico" style="margin-top:6px">${org ? 'Organiza el viaje' : 'Está en el viaje'}</div></div>
+        <div class="lista">
+          <button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-ha="org">${org ? (u === a.yo ? 'Dejar de organizar' : 'Quitar como organizador') : '⭐️ Nombrar organizador'}</button>
+          ${u !== a.yo ? '<button class="fila" style="width:100%;text-align:left;color:var(--rojo)" data-ha="sacar">Sacar del viaje</button>' : ''}
+        </div>
+        <p class="pie">${org ? 'Va a seguir en el viaje como uno más.' : 'Va a poder aprobar gente, nombrar organizadores, editar el viaje, poner el aviso y ocultar cosas.'}</p>`,
+      accion: k => {
+        if (k === 'org') hacerOrganizador(u, !org);
+        if (k === 'sacar') { if (!confirm(`¿Sacar a ${m.nombre} del viaje?`)) return; decidir(u, false); }
+        cerrarHoja();
+      },
+    });
+  },
+
+  nombrar() {
+    const candidatos = a.aprobados.filter(m => !a.organiza(m.autor));
+    abrirHoja({
+      titulo: 'Nombrar organizador', estado: {},
+      cuerpo: () => candidatos.length
+        ? `<div class="lista elegir">${candidatos.map(m => `<div class="fila" data-ha="elegir" data-u="${esc(m.autor)}">${av(m.autor, 32)}<span class="crece">${esc(m.nombre)}</span>⭐️</div>`).join('')}</div>
+           <p class="pie">Va a poder aprobar gente, nombrar organizadores, editar el viaje, poner el aviso y ocultar cosas.</p>`
+        : '<p class="pie">Todos los del viaje ya organizan.</p>',
+      accion: (k, b) => { hacerOrganizador(b.dataset.u, true); cerrarHoja(); },
+    });
+  },
+
 };
 
 // ───────────────────────── Acciones (todos los toques pasan por acá)
@@ -1606,9 +1813,19 @@ const acciones = {
   columnas: b => { ui.columnas = +b.dataset.v; render(); },
   'ver-foto': b => verFoto(b.dataset.id),
   // Grupo
-  'qr-grande': () => hojas.qr(),
+  'copiar-link': async () => {
+    try { await navigator.clipboard.writeText(linkInvitacion()); avisar('Link copiado ✓', true); }
+    catch { prompt('Copiá el link:', linkInvitacion()); }
+  },
+  persona: b => hojas.persona(b.dataset.u),
+  nombrar: () => hojas.nombrar(),
+  'dejar-organizar': () => { if (confirm('¿Dejar de organizar? Vas a seguir en el viaje.')) hacerOrganizadorPropio(); },
+  aviso: () => hojas.aviso(),
+  'sacar-aviso': () => { if (confirm('¿Sacar el aviso fijo?')) guardarViaje({ ...a.viaje, aviso: undefined, avisoFecha: undefined, avisoAutor: undefined }); },
+  ocultar: b => { if (!b.dataset.confirmar || confirm(b.dataset.confirmar)) ocultar(b.dataset.id, true); },
+  mostrar: b => ocultar(b.dataset.id, false),
   compartir: async () => {
-    const texto = `Sumate a ${a.viaje.nombre} en Colonia 🏕️\n${linkInvitacion()}\n\nSi tenés la app se abre ahí; si no, en el navegador. Si no se abre, en Colonia tocá "Me invitaron" y pegá el código ${a.viajeID}.`;
+    const texto = textoInvitacion();
     if (navigator.share) { try { await navigator.share({ text: texto }); } catch {} }
     else { await navigator.clipboard?.writeText(texto); avisar('Link copiado', true); }
   },
@@ -1646,6 +1863,8 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   if (e.target.matches('[data-a=comparto]')) acciones.comparto(e.target);
+  if (e.target.matches('[data-a=entrada]')) guardarViaje({ ...a.viaje, entradaCerrada: e.target.checked ? undefined : true });
+  if (e.target.matches('[data-a=auto-aprobar]')) guardarViaje({ ...a.viaje, autoAprobar: e.target.checked || undefined });
   if (e.target.matches('[data-subir-fotos]')) { subirFotos([...e.target.files]); e.target.value = ''; }
 });
 document.addEventListener('input', e => {

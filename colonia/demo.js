@@ -40,12 +40,13 @@ class Demo {
     this.poner('viaje', {
       id: v, nombre: 'Colonia 2027', destino: 'Colonia del Sacramento', moneda: '$',
       inicio: ahora - 86400000, fin: ahora + 86400000 * 5, latitud: c.lat, longitud: c.lon,
+      aviso: 'Mañana salimos 8 am de la casa 🚐', avisoFecha: ahora - 3600000, avisoAutor: 'demo-juli',
       destinoOculto: sorpresa || undefined, aeropuertoNombre: 'Aeropuerto de Ezeiza', aeropuertoLat: -34.815, aeropuertoLon: -58.5348,
     }, admin, 3000);
     this.poner('miembro', { id: `m-${v}-${yo}`, nombre: 'Santi', emoji: '🧉', color: 0, codigo: v, pedido: ahora - 3000 * 60000, comparteUbicacion: true }, yo, 3000);
     for (const [id, nombre, emoji, color] of this.amigos) {
       this.poner('miembro', { id: `m-${v}-${id}`, nombre, emoji, color, codigo: v, pedido: ahora - 2900 * 60000, comparteUbicacion: true }, id, 2900);
-      this.poner('decision', { id: `d-${v}-${id}`, usuario: id, aprobado: true, fecha: ahora - 2800 * 60000 }, admin, 2800);
+      this.poner('decision', { id: `d-${v}-${id}`, usuario: id, aprobado: true, admin: id === 'demo-juli' && !sorpresa, fecha: ahora - 2800 * 60000 }, admin, 2800);
     }
     // Dos pedidos esperando aprobación
     this.poner('miembro', { id: `m-${v}-demo-fede`, nombre: 'Fede', emoji: '🐙', color: 7, codigo: v, pedido: ahora - 600000, comparteUbicacion: true }, 'demo-fede', 10);
