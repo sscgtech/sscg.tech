@@ -1895,11 +1895,15 @@ const almacenSesion = {
   putToken: (_contenedor, t) => guardarLS(LLAVE_SESION, t || null),
 };
 (function recibirSesion() {
-  const p = new URLSearchParams(location.search), t = p.get('ckWebAuthToken') || p.get('ckSession');
-  if (!t) return;
+  // Se lee crudo: URLSearchParams cambia los "+" de la llave por espacios y la rompe. Puede venir en la query o en el #.
+  const crudo = `${location.search}&${location.hash.replace(/^#/, '')}`;
+  const m = crudo.match(/[?&](?:ckWebAuthToken|ckSession)=([^&#]+)/);
+  if (!m) return;
+  let t = m[1];
+  try { t = decodeURIComponent(t); } catch {}
   guardarLS(LLAVE_SESION, t);
-  p.delete('ckWebAuthToken'); p.delete('ckSession');
-  history.replaceState(null, '', location.pathname + (p.toString() ? `?${p}` : ''));
+  const resto = location.search.replace(/^\?/, '').split('&').filter(x => x && !/^(ckWebAuthToken|ckSession)=/.test(x)).join('&');
+  history.replaceState(null, '', location.pathname + (resto ? `?${resto}` : ''));
 })();
 
 async function entrarConApple() {
@@ -1924,14 +1928,18 @@ async function conectarCloudKit() {
     CloudKit.configure({
       locale: 'es-es',
       services: { authTokenStore: almacenSesion },
-      containers: [{ containerIdentifier: CONTENEDOR, environment: 'production', apiTokenAuth: { apiToken: TOKEN, persist: false } }],
+      containers: [{ containerIdentifier: CONTENEDOR, environment: 'production', apiTokenAuth: { apiToken: TOKEN, persist: true, ckWebAuthToken: leerLS(LLAVE_SESION) || undefined } }],   // persist: si no, CloudKit no usa authTokenStore
     });
     const c = CloudKit.getDefaultContainer();
     a.nube = new NubeCloudKit(c);
     if (!a.esDemo) a.servidor = a.nube;
-    const id = leerLS(LLAVE_SESION) ? await c.setUpAuth().catch(() => null) : null;
+    let id = null;
+    if (leerLS(LLAVE_SESION)) {
+      id = await c.setUpAuth().catch(e => { console.warn('CloudKit setUpAuth', e); a.error = `No se pudo entrar con tu Apple ID: ${mensajeError(e)}`; return null; });
+    }
     a.cloudkitListo = true;
-    if (id) entrar(id); else if (leerLS(LLAVE_SESION)) guardarLS(LLAVE_SESION, null);   // llave vencida
+    if (id) entrar(id);
+    else if (leerLS(LLAVE_SESION)) { console.warn('CloudKit: la llave guardada no sirvió'); guardarLS(LLAVE_SESION, null); }
   } catch (e) {
     a.cloudkitListo = true;
     a.cloudkitError = /origin|domain|token|AUTHENTICATION/i.test(String(e?.reason || e?.message || e))
