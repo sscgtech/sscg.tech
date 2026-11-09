@@ -275,7 +275,7 @@ function salirDelViaje() {
   a.viajeID = null; a.sobres = new Map(); a.desde = null;
   if (a.esDemo) { a.esDemo = false; a.servidor = a.nube; a.yo = a.nube?.yo || ''; }
   reconstruir(); guardarLocal();
-  ui.pestana = 0; ui.seccion = null; ui.juego = null;
+  ui.pestana = CHAT; ui.seccion = null; ui.juego = null;
   render();
 }
 
@@ -360,6 +360,13 @@ function hacerOrganizadorPropio() {
   if (m) guardar('mensaje', Nuevo.mensaje(`${m.emoji} ${m.nombre} dejó de organizar`, 'sistema'));
 }
 
+/** Aviso automático en el chat cuando alguien crea algo (todo menos los gastos), con botón al detalle.
+ *  enlace: "tarea:<id>", "encuesta:<id>", "evento:<id>", "juego:<id>", "equipos:<id>" o "fotos". */
+function anunciar(texto, enlace) {
+  const quien = a.perfil ? `${a.perfil.emoji} ${a.perfil.nombre}` : 'Alguien';
+  guardar('mensaje', Nuevo.mensaje(`${quien} ${texto}`, 'sistema', { enlace }));
+}
+
 function ocultar(registro, oculto) {
   if (!a.soyAdmin) return;
   guardar('oculto', Nuevo.oculto(registro, oculto));
@@ -432,6 +439,7 @@ function resumen(tipo, v) {
     if (v.clase === 'llegue') return `${quien} llegó ✅`;
     if (v.clase === 'dondeEstas') return `${quien} pregunta: ${v.texto}`;
     if (v.clase === 'ubicacion') return `${quien} compartió dónde está 📍`;
+    if (v.clase === 'sistema') return v.texto;
     return `${quien}: ${v.texto}`;
   }
   if (tipo === 'miembro') return `${quien} quiere sumarse al viaje`;
@@ -633,7 +641,7 @@ const ubicacion = {
     chequearAeropuerto(this.actual.lat, this.actual.lon);
     const movio = !this.ultimoPunto || distanciaM(this.ultimoPunto.lat, this.ultimoPunto.lon, this.actual.lat, this.actual.lon) > 40;
     if (movio || ahora() - this.ultimoEnvio > 90000) this.enviar();
-    if (primera && ui.pestana === 0) mapa.actualizar();
+    if (primera && enElMapa()) mapa.actualizar();
   },
   enviar(forzar = false) {
     if (!this.actual || !a.viajeID || a.esDemo || !this.comparto || a.miEstado !== 'aprobado') return;
@@ -665,7 +673,7 @@ async function buscarLugar(q, cerca) {
 // ───────────────────────── Interfaz
 
 const ui = {
-  pestana: 0, seccion: null, juego: null, seleccion: null, satelite: false, verLugares: true,
+  pestana: 0 /* CHAT */, seccion: null, juego: null, seleccion: null, satelite: false, verLugares: true,
   porPosiciones: true, tocado: null, verTodosSorteos: false, soloMias: false, ocultarHechas: false,
   verPasados: false, verQuien: {}, saldoTocado: null, columnas: 3, codigoLink: null, primeraVista: true,
 };
@@ -705,11 +713,9 @@ function render() {
   else if (a.miEstado !== 'aprobado') html = vEspera(a.miEstado === 'rechazado');
   else {
     conPestanas = true;
-    if (ui.pestana === 0) html = vMapa();
-    else if (ui.pestana === 1) { html = vChat(); clase = 'chat'; }
-    else if (ui.pestana === 2) html = ui.juego ? vJuego() : vJuegos();
-    else if (ui.pestana === 3) html = vTareas();
-    else html = ui.seccion ? ({ gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, grupo: vGrupo, organizar: vOrganizar })[ui.seccion]() : vMas();
+    if (ui.pestana === CHAT) { html = vChat(); clase = 'chat'; }
+    else if (ui.pestana === RANKING) html = ui.juego ? vJuego() : vJuegos();
+    else html = ui.seccion ? ({ mapa: vMapa, tareas: vTareas, gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, grupo: vGrupo, organizar: vOrganizar })[ui.seccion]() : vMas();
   }
 
   const scrollAntes = window.scrollY;
@@ -717,10 +723,11 @@ function render() {
   v.className = conPestanas ? clase : 'sin-pestanas';
   nav.hidden = !conPestanas;
   if (conPestanas) nav.innerHTML = pestanas();
-  $('#mapa-caja').hidden = !(conPestanas && ui.pestana === 0);
-  if (conPestanas && ui.pestana === 0) mapa.mostrar(); else mapa.ocultar();
-  redactar.mostrar(conPestanas && ui.pestana === 1);
-  if (conPestanas && ui.pestana === 1) chatAlFondo();
+  const enMapa = conPestanas && enElMapa();
+  $('#mapa-caja').hidden = !enMapa;
+  if (enMapa) mapa.mostrar(); else mapa.ocultar();
+  redactar.mostrar(conPestanas && ui.pestana === CHAT);
+  if (conPestanas && ui.pestana === CHAT) chatAlFondo();
   else if (!ui.cambioDeVista) window.scrollTo(0, scrollAntes);
   if (ui.cambioDeVista) { window.scrollTo(0, 0); ui.cambioDeVista = false; }
 
@@ -737,9 +744,12 @@ function animarBarras() {
   }));
 }
 
+// Abajo solo Chat y Ranking; todo lo demás (mapa, tareas, gastos, agenda…) está en Más.
+const CHAT = 0, RANKING = 1, MAS = 2;
+const enElMapa = () => ui.pestana === MAS && ui.seccion === 'mapa';
 function pestanas() {
-  const nl = ui.pestana === 1 ? 0 : noLeidos(), pend = a.soyAdmin ? a.pendientes.length : 0;
-  const p = [['Mapa', SVG.mapa], ['Chat', SVG.chat, nl], ['Juegos', SVG.juegos], ['Tareas', SVG.tareas], ['Más', SVG.mas, pend]];
+  const nl = ui.pestana === CHAT ? 0 : noLeidos(), pend = a.soyAdmin ? a.pendientes.length : 0;
+  const p = [['Chat', SVG.chat, nl], ['Ranking', SVG.juegos], ['Más', SVG.mas, pend]];
   return p.map(([t, ico, n], i) => `<button data-a="pestana" data-i="${i}" class="${ui.pestana === i ? 'si' : ''}">${ico}${t}${n ? `<span class="globo">${n}</span>` : ''}</button>`).join('');
 }
 
@@ -908,7 +918,7 @@ function vMapa() {
   const s = ui.seleccion && a.ubicaciones[ui.seleccion];
   const abajoAlto = s ? 190 : 100;
   return `
-    <div class="mapa-cab"><div class="nombre">${esc(tit)}</div><span class="espacio"></span>
+    <div class="mapa-cab"><button class="flotante volver-mapa" data-a="volver-mas">‹</button><div class="nombre">${esc(tit)}</div><span class="espacio"></span>
       <div class="flotante controles" style="position:static;flex-direction:row">
         <button data-a="satelite" class="${ui.satelite ? 'si' : ''}" title="Satélite">🛰️</button>
         <button data-a="lugares" class="${ui.verLugares ? 'si' : ''}" title="Lugares de la agenda">📅</button>
@@ -954,8 +964,13 @@ function vChat() {
   return html;
 }
 
+const textoEnlace = e => ({ tarea: 'Ver tarea', encuesta: 'Votar', evento: 'Ver en la agenda', juego: 'Ver juego', equipos: 'Ver equipos', fotos: 'Ver fotos' })[e.split(':')[0]] || 'Ver';
+
 function burbuja(m, mostrarNombre) {
-  if (m.clase === 'sistema') return `<div class="sistema"><span>${esc(m.texto)}</span></div>`;
+  if (m.clase === 'sistema') {
+    if (!m.enlace) return `<div class="sistema"><span>${esc(m.texto)}</span></div>`;
+    return `<div class="sistema anuncio"><span>${esc(m.texto)}<button class="ver-enlace" data-a="abrir-enlace" data-e="${esc(m.enlace)}">${esc(textoEnlace(m.enlace))} ›</button><i>${hora(m.fecha)}</i></span></div>`;
+  }
   const mio = m.autor === a.yo;
   let cont;
   if (m.clase === 'llegue' || m.clase === 'ubicacion') {
@@ -997,7 +1012,7 @@ function chatAlFondo() {
   const cerca = window.innerHeight + window.scrollY > document.body.scrollHeight - 260;
   if (ultimo !== ultimoMensajeVisto || ui.cambioDeVista || cerca) {
     const suave = ultimoMensajeVisto && !ui.cambioDeVista;
-    requestAnimationFrame(() => { if (ui.pestana === 1) window.scrollTo({ top: document.body.scrollHeight, behavior: suave ? 'smooth' : 'auto' }); });
+    requestAnimationFrame(() => { if (ui.pestana === CHAT) window.scrollTo({ top: document.body.scrollHeight, behavior: suave ? 'smooth' : 'auto' }); });
   }
   ultimoMensajeVisto = ultimo;
   if (a.mensajes.length) { a.leidosHasta = ahora(); guardarLS('leidosHasta', a.leidosHasta); }
@@ -1009,7 +1024,7 @@ function vJuegos() {
   const filas = rankingGeneral(ui.porPosiciones);
   const maximo = Math.max(...filas.map(f => f.puntos), 1);
   const sorteos = a.sorteos.slice(0, ui.verTodosSorteos ? 50 : 1);
-  return `${titulo('Juegos y ranking')}
+  return `${titulo('Ranking y juegos')}
     <button class="equipos-b" data-a="armar-equipos"><span class="ico">🎲</span><span style="flex:1"><b>Armar equipos</b><span class="chico" style="color:#fff;opacity:.85">Para un juego o actividad, al azar</span></span>›</button>
     ${sorteos.map(sorteoPublicado).join('')}
     ${a.sorteos.length > 1 ? `<div class="centro" style="margin-top:8px"><button class="enlace" data-a="ver-sorteos">${ui.verTodosSorteos ? 'Ver menos' : `Ver sorteos anteriores (${a.sorteos.length - 1})`}</button></div>` : ''}
@@ -1037,7 +1052,7 @@ function vJuegos() {
 }
 
 function sorteoPublicado(s) {
-  return `<div class="tarjeta" style="margin-top:12px">
+  return `<div class="tarjeta" style="margin-top:12px" data-registro="${esc(s.id)}">
     <div class="renglon" style="margin-bottom:8px">${av(s.autor, 24)}<span class="chico" style="flex:1">${esc(a.nombre(s.autor))} sorteó · ${haceCuanto(s.fecha)}${s.parejos ? ' · parejos' : ''}</span></div>
     <b>🎲 ${esc(s.titulo)}</b>${botonOcultar(s)}
     <div style="margin-top:8px">${s.equipos.map((eq, i) => tarjetaEquipo(s.nombres[i] || `Equipo ${i + 1}`, eq, color(i * 3))).join('')}</div></div>`;
@@ -1064,7 +1079,7 @@ function vTareas() {
   const hechas = a.tareas.filter(hecha).length, total = Math.max(a.tareas.length, 1);
   const mias = a.tareas.filter(t => t.responsables.includes(a.yo) && !hecha(t)).length;
   const circ = 2 * Math.PI * 25;
-  return `${titulo('Tareas', '<button class="boton suave chico" data-a="nueva-tarea">＋ Nueva</button>')}
+  return `${titulo('Tareas', '<button class="boton suave chico" data-a="nueva-tarea">＋ Nueva</button>', volverA('volver-mas', 'Más'))}
     <div class="tarjeta progreso"><div class="anillo"><svg width="58" height="58"><circle class="fondo-a" cx="29" cy="29" r="25"/><circle class="lleno" cx="29" cy="29" r="25" stroke-dasharray="${circ}" stroke-dashoffset="${circ}" data-arco="${circ * (1 - hechas / total)}"/></svg><span>${Math.round(hechas / total * 100)}%</span></div>
       <div><b style="font-size:17px">${hechas} de ${a.tareas.length} hechas</b><div class="chico">${mias === 0 ? 'No te queda nada 🎉' : mias === 1 ? 'Te queda 1 pendiente' : `Te quedan ${mias} pendientes`}</div></div></div>
     <div class="filtros" style="margin-top:12px"><button data-a="solo-mias" class="${ui.soloMias ? 'si' : ''}">Solo las mías</button><button data-a="ocultar-hechas" class="${ui.ocultarHechas ? 'si' : ''}">Ocultar las hechas</button></div>
@@ -1076,7 +1091,7 @@ function vTareas() {
 }
 function filaTarea(t) {
   const h = hecha(t), dia = t.dia != null ? (esHoy(t.dia) ? 'Hoy' : fmt(t.dia, { weekday: 'long', day: 'numeric' })) : '';
-  return `<div class="fila ${h ? 'hecha' : ''}"><button class="check ${h ? 'si' : ''}" data-a="marcar" data-id="${esc(t.id)}" aria-label="Marcar">${h ? '✓' : ''}</button>
+  return `<div class="fila ${h ? 'hecha' : ''}" data-registro="${esc(t.id)}"><button class="check ${h ? 'si' : ''}" data-a="marcar" data-id="${esc(t.id)}" aria-label="Marcar">${h ? '✓' : ''}</button>
     <span class="crece"><div class="t">${esc(t.titulo)}</div><div class="s">${pila(t.responsables, 20)} ${esc(lista(t.responsables.map(u => a.nombre(u))))}</div>
     ${dia ? `<div class="mini" style="font-weight:600;color:${t.dia != null && esHoy(t.dia) ? 'var(--acento)' : 'var(--tinta-2)'}">${dia}</div>` : ''}</span>
     ${t.responsables.includes(a.yo) && !h ? '<span class="vos">Vos</span>' : ''}
@@ -1093,6 +1108,8 @@ function vMas() {
   const mos = (s, ico, nom, c, det) => `<button class="mosaico" data-a="seccion" data-s="${s}" style="--c:${c}"><span class="ico">${ico}</span><b>${nom}</b><span class="chico">${esc(det)}</span></button>`;
   return `${titulo(a.viaje.nombre)}
     <div class="mosaicos">
+      ${mos('mapa', '🗺️', 'Mapa', 'var(--azul)', `${Object.keys(a.ubicaciones).length} con ubicación`)}
+      ${mos('tareas', '📋', 'Tareas', 'var(--verde)', (n => n ? `Te ${n === 1 ? 'queda 1' : `quedan ${n}`}` : 'No te queda nada')(a.tareas.filter(t => t.responsables.includes(a.yo) && !hecha(t)).length))}
       ${mos('gastos', '💲', 'Gastos', 'var(--verde)', gastos)}
       ${mos('agenda', '📅', 'Agenda', 'var(--azul)', prox ? `${prox.titulo} · ${relativo(prox.inicio)}` : 'Nada por ahora')}
       ${mos('votaciones', '📊', 'Votaciones', 'var(--violeta)', `${a.encuestas.filter(e => !e.cerrada).length} abiertas`)}
@@ -1144,7 +1161,7 @@ function filaEvento(e) {
   const enCurso = e.inicio <= ahora() && e.inicio + 3600000 > ahora();
   const lugarOk = destinoVisible();
   const ir = e.latitud != null && lugarOk ? (esIOS ? `https://maps.apple.com/?daddr=${e.latitud},${e.longitud}` : `https://www.google.com/maps/dir/?api=1&destination=${e.latitud},${e.longitud}`) : null;
-  return `<div class="fila ${e.inicio < ahora() && !enCurso ? 'pasado' : ''}" style="align-items:flex-start">
+  return `<div class="fila ${e.inicio < ahora() && !enCurso ? 'pasado' : ''}" style="align-items:flex-start" data-registro="${esc(e.id)}">
     <span class="hora-ev">${hora(e.inicio)}${enCurso ? '<br><span class="ahora">AHORA</span>' : ''}</span>
     <span class="crece"><div class="t">${esc(e.titulo)}</div>
       ${e.lugar ? `<div class="s">📍 ${lugarOk ? esc(e.lugar) : 'Lugar secreto 🤫'}</div>` : ''}${e.nota ? `<div class="s">${esc(e.nota)}</div>` : ''}
@@ -1166,7 +1183,7 @@ function tarjetaEncuesta(e) {
   const conteo = e.opciones.map((_, i) => votos.filter(v => v.elegidas.includes(i)));
   const maximo = Math.max(...conteo.map(c => c.length), 0);
   const votaron = votos.filter(v => v.elegidas.length).length;
-  return `<div class="tarjeta">
+  return `<div class="tarjeta" data-registro="${esc(e.id)}">
     <div class="renglon">${av(e.autor, 24)}<span class="chico" style="flex:1">${esc(a.nombre(e.autor))} · ${haceCuanto(e.fecha)}</span>
       ${e.cerrada ? '<b class="chico">Cerrada</b>' : e.multiple ? '<span class="mini">Varias opciones</span>' : ''}</div>
     <b style="display:block;margin-top:8px;font-size:17px">${esc(e.pregunta)}</b>
@@ -1196,6 +1213,7 @@ function vFotos() {
 }
 
 async function subirFotos(archivos) {
+  let subidas = 0;
   for (const f of archivos) {
     subiendo++; render();
     try {
@@ -1205,9 +1223,11 @@ async function subirFotos(archivos) {
       await enviar('foto', { id, autor: '', pie: '', fecha: ahora(), miniatura: mini, formato }, a.esDemo ? undefined : f);
       if (a.esDemo) fotosDemo.set(id, URL.createObjectURL(f));
       mandarADrive(f, id, formato);
+      subidas++;
     } catch (e) { avisar(`No se pudo subir ${f.name}: ${mensajeError(e)}`); }
     subiendo--; render();
   }
+  if (subidas) anunciar(subidas === 1 ? 'subió una foto' : `subió ${subidas} fotos`, 'fotos');
 }
 const fotosDemo = new Map();
 async function miniatura(file, lado) {
@@ -1443,7 +1463,11 @@ const hojas = {
           <div class="fila" data-ha="gana" data-v="1"><span class="crece">El que más puntos tiene</span><span class="tilde ${e.ganaMayor ? 'si' : ''}">${e.ganaMayor ? '✓' : ''}</span></div>
           <div class="fila" data-ha="gana" data-v="0"><span class="crece">El que menos tiene (golf, tiempo…)</span><span class="tilde ${e.ganaMayor ? '' : 'si'}">${e.ganaMayor ? '' : '✓'}</span></div></div>`,
       accion: (k, b) => { if (k === 'emoji') e.emoji = b.dataset.v; if (k === 'gana') e.ganaMayor = b.dataset.v === '1'; pintarHoja(); },
-      ok: () => { guardar('juego', Nuevo.juego(e.nombre.trim(), e.emoji, e.ganaMayor)); },
+      ok: () => {
+        const j = Nuevo.juego(e.nombre.trim(), e.emoji, e.ganaMayor);
+        guardar('juego', j);
+        anunciar(`creó el juego ${j.emoji} ${j.nombre}`, `juego:${j.id}`);
+      },
     });
   },
 
@@ -1454,10 +1478,12 @@ const hojas = {
       cuerpo: () => `<div class="seccion-t">Puntos de esta ronda (dejá vacío al que no jugó)</div><div class="lista">${a.aprobados.map(m => `<div class="fila">${av(m.autor, 28)}<span class="crece">${esc(a.nombre(m.autor))}</span>
         <input class="campo num" style="width:90px;text-align:right" inputmode="decimal" data-hc="${esc(m.autor)}" placeholder="0" value="${esc(e[m.autor] ?? '')}"></div>`).join('')}</div>`,
       ok: () => {
+        const cargados = [];
         for (const [u, t] of Object.entries(e)) {
           const n = parseFloat(String(t).replace(',', '.'));
-          if (!Number.isNaN(n)) guardar('puntaje', Nuevo.puntaje(j.id, u, n));
+          if (!Number.isNaN(n)) { guardar('puntaje', Nuevo.puntaje(j.id, u, n)); cargados.push(`${a.nombre(u)} ${n >= 0 ? '+' : ''}${numero(n)}`); }
         }
+        if (cargados.length) anunciar(`cargó puntos de ${j.emoji} ${j.nombre}: ${cargados.join(', ')}`, `juego:${j.id}`);
       },
     });
   },
@@ -1498,8 +1524,9 @@ const hojas = {
         }
         if (k === 'publicar') {
           const tit = e.titulo.trim() || 'Equipos';
-          guardar('equipos', Nuevo.equipos(tit, e.resultado, e.nombres, e.parejos));
-          guardar('mensaje', Nuevo.mensaje(`🎲 Equipos para ${e.titulo.trim() || 'jugar'}: ${e.resultado.map((g, i) => `${e.nombres[i]} (${g.map(u => a.nombre(u)).join(', ')})`).join(' · ')}`));
+          const eq = Nuevo.equipos(tit, e.resultado, e.nombres, e.parejos);
+          guardar('equipos', eq);
+          anunciar(`armó equipos para ${e.titulo.trim() || 'jugar'}: ${e.resultado.map((g, i) => `${e.nombres[i]} (${g.map(u => a.nombre(u)).join(', ')})`).join(' · ')}`, `equipos:${eq.id}`);
           cerrarHoja(); return;
         }
         pintarHoja();
@@ -1532,7 +1559,9 @@ const hojas = {
       },
       ok: () => {
         const dia = e.conDia && e.dia ? new Date(`${e.dia}T00:00:00`).getTime() : undefined;
-        guardar('tarea', Nuevo.tarea(e.titulo.trim(), e.categoria, e.responsables, dia));
+        const t = Nuevo.tarea(e.titulo.trim(), e.categoria, e.responsables, dia);
+        guardar('tarea', t);
+        anunciar(`creó la tarea “${t.titulo}” para ${lista(t.responsables.map(u => a.nombre(u)))}${dia != null ? ` · ${esHoy(dia) ? 'hoy' : fmt(dia, { weekday: 'long', day: 'numeric' })}` : ''}`, `tarea:${t.id}`);
       },
     });
   },
@@ -1589,7 +1618,11 @@ const hojas = {
         if (k === 'aca') { const p = await ubicacion.posicion(); if (p) { e.lat = p.lat; e.lon = p.lon; if (!e.lugar) e.lugar = 'Acá'; } else avisar('No tengo tu ubicación'); }
         pintarHoja();
       },
-      ok: () => { guardar('evento', Nuevo.evento(e.titulo.trim(), new Date(e.cuando).getTime(), e.lugar.trim(), e.nota.trim(), e.lat ?? undefined, e.lon ?? undefined)); },
+      ok: () => {
+        const ev = Nuevo.evento(e.titulo.trim(), new Date(e.cuando).getTime(), e.lugar.trim(), e.nota.trim(), e.lat ?? undefined, e.lon ?? undefined);
+        guardar('evento', ev);
+        anunciar(`sumó a la agenda: “${ev.titulo}” · ${fmt(ev.inicio, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}`, `evento:${ev.id}`);
+      },
     });
   },
 
@@ -1603,7 +1636,11 @@ const hojas = {
         ${e.opciones.length < 8 ? '<button class="enlace" style="margin-top:10px" data-ha="otra">＋ Agregar opción</button>' : ''}
         <label class="interruptor"><span>Se puede elegir más de una</span><input type="checkbox" data-hc="multiple" ${e.multiple ? 'checked' : ''}></label>`,
       accion: k => { if (k === 'otra') { e.opciones.push(''); pintarHoja(); $(`#hoja [data-op="${e.opciones.length - 1}"]`).focus(); } },
-      ok: () => { guardar('encuesta', Nuevo.encuesta(e.pregunta.trim(), validas(), e.multiple)); },
+      ok: () => {
+        const en = Nuevo.encuesta(e.pregunta.trim(), validas(), e.multiple);
+        guardar('encuesta', en);
+        anunciar(`abrió una votación: “${en.pregunta}”`, `encuesta:${en.id}`);
+      },
     });
     $('#hoja').addEventListener('input', function op(ev) {
       if (!hoja || hoja.titulo !== 'Nueva votación') return $('#hoja').removeEventListener('input', op);
@@ -1747,7 +1784,6 @@ const acciones = {
     const i = +b.dataset.i;
     if (ui.pestana === i) { ui.seccion = null; ui.juego = null; }
     ui.pestana = i; ui.cambioDeVista = true;
-    if (i === 0 && ui.enfocar) { const u = ui.enfocar; ui.enfocar = null; ui.seleccion = u; render(); mapa.centrar(u); return; }
     render();
   },
   // Mapa
@@ -1768,9 +1804,10 @@ const acciones = {
   'estoy-aca': () => mensajeConUbicacion('ubicacion', 'Estoy acá 📍'),
   'mandar-ubicacion': () => mensajeConUbicacion('ubicacion', 'Estoy acá 📍'),
   'donde-estas': () => hojas.dondeEstas(),
+  'abrir-enlace': b => abrirEnlace(b.dataset.e),
   'ir-mapa': b => {
     const u = b.dataset.u;
-    ui.pestana = 0;
+    ui.pestana = MAS; ui.seccion = 'mapa'; ui.cambioDeVista = true;
     if (a.ubicaciones[u]) { ui.seleccion = u; render(); mapa.centrar(u); }
     else { render(); if (b.dataset.lat) mapa.m.flyTo([+b.dataset.lat, +b.dataset.lon], 17); }
   },
@@ -1847,6 +1884,31 @@ const acciones = {
   },
 };
 
+/** Lleva al detalle de algo avisado en el chat y lo resalta. */
+function abrirEnlace(enlace) {
+  const [tipo, id] = enlace.split(':');
+  const existe = { tarea: a.tareas, encuesta: a.encuestas, evento: a.eventos, juego: a.juegos, equipos: a.sorteos }[tipo];
+  if (existe && !existe.some(x => x.id === id)) return avisar('Ya no está (lo borraron o lo ocultaron)');
+  ui.cambioDeVista = true; ui.juego = null;
+  if (tipo === 'juego') { ui.pestana = RANKING; ui.juego = id; }
+  else if (tipo === 'equipos') { ui.pestana = RANKING; ui.verTodosSorteos = a.sorteos[0]?.id !== id; }
+  else {
+    ui.pestana = MAS;
+    ui.seccion = { tarea: 'tareas', encuesta: 'votaciones', evento: 'agenda', fotos: 'fotos' }[tipo] || null;
+    if (tipo === 'tarea') { ui.soloMias = false; ui.ocultarHechas = false; }
+    if (tipo === 'evento') { const ev = a.eventos.find(x => x.id === id); if (ev && ev.inicio < ahora() - 3 * 3600000) ui.verPasados = true; }
+  }
+  history.pushState({ v: 'enlace' }, '');
+  render();
+  if (id) requestAnimationFrame(() => {
+    const el = document.querySelector(`[data-registro="${CSS.escape(id)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('resaltado');
+    setTimeout(() => el.classList.remove('resaltado'), 2200);
+  });
+}
+
 async function mensajeConUbicacion(clase, texto) {
   const p = await ubicacion.posicion();
   guardar('mensaje', Nuevo.mensaje(texto, clase, p ? { latitud: p.lat, longitud: p.lon } : {}));
@@ -1883,7 +1945,7 @@ window.addEventListener('popstate', () => {
   if (ui.juego) ui.juego = null; else if (ui.seccion) ui.seccion = null;
   ui.cambioDeVista = true; render();
 });
-setInterval(() => { if (bucle && !hoja && ui.pestana !== 1 && document.activeElement?.tagName !== 'INPUT') render(); }, 30000);   // "hace X min"
+setInterval(() => { if (bucle && !hoja && ui.pestana !== CHAT && document.activeElement?.tagName !== 'INPUT') render(); }, 30000);   // "hace X min"
 
 // ───────────────────────── Arranque
 
