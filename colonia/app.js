@@ -68,7 +68,7 @@ const REF_2001 = 978307200000;
 const FECHAS = {
   viaje: ['inicio', 'fin', 'revelarA', 'avisoFecha'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
   juego: ['fecha'], puntaje: ['fecha'], equipos: ['fecha'], tarea: ['dia'], marca: ['fecha'], gasto: ['fecha'],
-  evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'],
+  evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'], valija: ['fecha'], decomiso: ['fecha'],
 };
 function codificar(tipo, obj) {
   const o = {};
@@ -109,7 +109,9 @@ const Nuevo = {
   gasto: (descripcion, monto, pagador, entre, esPago = false) => ({ id: nuevoID('g'), autor: '', descripcion, monto, pagador, entre, fecha: ahora(), esPago }),
   evento: (titulo, inicio, lugar, nota, latitud, longitud) => ({ id: nuevoID('e'), autor: '', titulo, inicio, lugar, nota, latitud, longitud }),
   encuesta: (pregunta, opciones, multiple) => ({ id: nuevoID('enc'), autor: '', pregunta, opciones, multiple, cerrada: false, fecha: ahora() }),
-  voto: (encuesta, elegidas) => ({ id: `v-${encuesta}-${a.yo}`, autor: '', encuesta, elegidas }),
+  voto: (encuesta, elegidas, cambios) => ({ id: `v-${encuesta}-${a.yo}`, autor: '', encuesta, elegidas, cambios }),
+  valija: tildados => ({ id: `val-${a.viajeID}-${a.yo}`, autor: '', tildados, fecha: ahora() }),
+  decomiso: (persona, item, multa, nota, miniatura) => ({ id: nuevoID('dec'), autor: '', persona, item, multa, nota, miniatura, fecha: ahora() }),
 };
 
 // ───────────────────────── Servidor real: CloudKit JS
@@ -220,7 +222,7 @@ const a = {
   desde: null,
   leidosHasta: leerLS('leidosHasta', 0),
   viaje: null, miembros: {}, decisiones: {}, mensajes: [], ubicaciones: {}, juegos: [], puntajes: [], tareas: [], marcas: [],
-  gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [],
+  gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [], valijas: {}, decomisos: [],
   organizadores: new Set(), ocultos: new Set(), ocultosLista: [],
 
   /** El que creó el viaje: siempre organiza y no se lo puede sacar. */
@@ -518,6 +520,9 @@ function reconstruir() {
   a.votos = de('voto').filter(ok);
   a.fotos = de('foto').filter(ok).sort((x, y) => y.fecha - x.fecha);
   a.sorteos = de('equipos').filter(ok).sort((x, y) => y.fecha - x.fecha);
+  a.valijas = {};
+  for (const v of de('valija').filter(v => a.cuenta(v.autor))) if (!a.valijas[v.autor] || v.fecha > a.valijas[v.autor].fecha) a.valijas[v.autor] = v;
+  a.decomisos = de('decomiso').filter(ok).sort((x, y) => y.fecha - x.fecha);
   revisarRevelacion();
 }
 
@@ -704,6 +709,8 @@ $('#aviso').addEventListener('click', () => { $('#aviso').hidden = true; a.error
 // ── Pintar
 
 function render() {
+  const animar = !!ui.cambioDeVista || ui.primeraVista;   // las barras se animan al entrar, no en cada sincronización
+  ui.primeraVista = false;
   const v = $('#vista'), nav = $('#pestanas');
   let html, conPestanas = false, clase = '';
 
@@ -715,7 +722,7 @@ function render() {
     conPestanas = true;
     if (ui.pestana === CHAT) { html = vChat(); clase = 'chat'; }
     else if (ui.pestana === RANKING) html = ui.juego ? vJuego() : vJuegos();
-    else html = ui.seccion ? ({ mapa: vMapa, tareas: vTareas, gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, grupo: vGrupo, organizar: vOrganizar })[ui.seccion]() : vMas();
+    else html = ui.seccion ? ({ mapa: vMapa, tareas: vTareas, gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, valija: vValija, grupo: vGrupo, organizar: vOrganizar })[ui.seccion]() : vMas();
   }
 
   const scrollAntes = window.scrollY;
@@ -734,14 +741,22 @@ function render() {
   if (a.error && a.error !== render.ultimoError) avisar(a.error);
   render.ultimoError = a.error;
   if (mostrarRevelacion && conPestanas && !$('.revelacion')) pintarRevelacion();
-  animarBarras();
+  animarBarras(animar);
 }
 
-function animarBarras() {
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+function animarBarras(animar = true) {
+  const poner = () => {
     document.querySelectorAll('[data-ancho]').forEach(el => { el.style.width = el.dataset.ancho; });
     document.querySelectorAll('[data-arco]').forEach(el => { el.style.strokeDashoffset = el.dataset.arco; });
-  }));
+    document.querySelectorAll('[data-dash]').forEach(el => { el.style.strokeDasharray = el.dataset.dash; });
+  };
+  if (!animar) {   // sin animación: se ponen ya, sin transición
+    document.querySelectorAll('[data-ancho],[data-arco],[data-dash]').forEach(el => { el.style.transition = 'none'; });
+    poner();
+    return;
+  }
+  requestAnimationFrame(() => requestAnimationFrame(poner));
+  setTimeout(poner, 150);   // por si la pestaña está en segundo plano y no hay cuadros de animación
 }
 
 // Abajo solo Chat y Ranking; todo lo demás (mapa, tareas, gastos, agenda…) está en Más.
@@ -964,7 +979,7 @@ function vChat() {
   return html;
 }
 
-const textoEnlace = e => ({ tarea: 'Ver tarea', encuesta: 'Votar', evento: 'Ver en la agenda', juego: 'Ver juego', equipos: 'Ver equipos', fotos: 'Ver fotos' })[e.split(':')[0]] || 'Ver';
+const textoEnlace = e => ({ tarea: 'Ver tarea', encuesta: 'Votar', evento: 'Ver en la agenda', juego: 'Ver juego', equipos: 'Ver equipos', fotos: 'Ver fotos', decomiso: 'Ver decomiso' })[e.split(':')[0]] || 'Ver';
 
 function burbuja(m, mostrarNombre) {
   if (m.clase === 'sistema') {
@@ -1114,6 +1129,7 @@ function vMas() {
       ${mos('agenda', '📅', 'Agenda', 'var(--azul)', prox ? `${prox.titulo} · ${relativo(prox.inicio)}` : 'Nada por ahora')}
       ${mos('votaciones', '📊', 'Votaciones', 'var(--violeta)', `${a.encuestas.filter(e => !e.cerrada).length} abiertas`)}
       ${mos('fotos', '🖼️', 'Fotos', 'var(--rosa)', `${a.fotos.length} fotos`)}
+      ${mos('valija', '🧳', 'Valija', '#8B5E3C', `${prendasDe(a.yo)} de ${TOTAL_PRENDAS} prendas${a.decomisos.length ? ` · ${a.decomisos.length} decomisos` : ''}`)}
       ${mos('grupo', '👥', 'Grupo', 'var(--acento)', a.soyAdmin && pend ? `${pend} esperando ✋` : `${a.aprobados.length} personas`)}
       ${a.soyAdmin ? mos('organizar', '⭐️', 'Organizar', '#E8920C', a.viaje.entradaCerrada ? 'Entrada pausada' : a.ocultosLista.length ? `${a.ocultosLista.length} ocultas` : 'Entrada, aviso, organizadores') : ''}
     </div>`;
@@ -1177,26 +1193,113 @@ function vVotaciones() {
     ${a.encuestas.length ? '' : vacio('📊', 'Sin votaciones', '¿Dónde cenamos? ¿A qué hora salimos? Preguntale al grupo.')}
     ${a.encuestas.map(tarjetaEncuesta).join('')}`;
 }
+/** Gráfico de torta (anillo) con el % de cada opción. Cada opción tiene su color, igual que su barra. */
+function torta(conteo, total, id) {
+  const r = 42, circ = 2 * Math.PI * r;
+  let acumulado = 0;
+  const porciones = conteo.map((n, i) => {
+    if (!n) return '';
+    const largo = n / total * circ, desde = acumulado;
+    acumulado += largo;
+    return `<circle r="${r}" cx="60" cy="60" fill="none" stroke="${color(i * 2 + 1)}" stroke-width="18" stroke-dasharray="0 ${circ}"
+      data-dash="${Math.max(largo - 1.5, 0.5)} ${circ}" stroke-dashoffset="${-desde}" class="porcion" data-a="porcion" data-id="${esc(id)}" data-i="${i}"/>`;
+  }).join('');
+  const lider = conteo.indexOf(Math.max(...conteo));
+  return `<svg class="torta" viewBox="0 0 120 120" aria-hidden="true"><circle r="${r}" cx="60" cy="60" fill="none" stroke="var(--tarjeta-2)" stroke-width="18"/>
+    <g transform="rotate(-90 60 60)">${porciones}</g>
+    <text x="60" y="57" text-anchor="middle" class="torta-num">${total ? Math.round(conteo[lider] / total * 100) : 0}%</text>
+    <text x="60" y="73" text-anchor="middle" class="torta-txt">${total ? 'la que gana' : 'sin votos'}</text></svg>`;
+}
+
 function tarjetaEncuesta(e) {
   const votos = a.votos.filter(v => v.encuesta === e.id);
-  const mio = votos.find(v => v.autor === a.yo)?.elegidas ?? [];
+  const miVoto = votos.find(v => v.autor === a.yo);
+  const mio = miVoto?.elegidas ?? [];
   const conteo = e.opciones.map((_, i) => votos.filter(v => v.elegidas.includes(i)));
   const maximo = Math.max(...conteo.map(c => c.length), 0);
   const votaron = votos.filter(v => v.elegidas.length).length;
+  const elecciones = conteo.reduce((t, c) => t + c.length, 0);
+  const estadoVoto = !mio.length ? 'Tocá una opción para votar' : (miVoto.cambios ?? 0) >= 1 ? 'Ya usaste tu único cambio: tu voto quedó fijo' : 'Votaste · podés cambiarlo una sola vez';
   return `<div class="tarjeta" data-registro="${esc(e.id)}">
     <div class="renglon">${av(e.autor, 24)}<span class="chico" style="flex:1">${esc(a.nombre(e.autor))} · ${haceCuanto(e.fecha)}</span>
       ${e.cerrada ? '<b class="chico">Cerrada</b>' : e.multiple ? '<span class="mini">Varias opciones</span>' : ''}</div>
     <b style="display:block;margin-top:8px;font-size:17px">${esc(e.pregunta)}</b>
+    <div class="encuesta-cuerpo">
+      ${torta(conteo.map(c => c.length), elecciones, e.id)}
+      <div class="leyenda">${e.opciones.map((op, i) => `<span class="${ui.porcion?.[e.id] === i ? 'si' : ''}"><i style="background:${color(i * 2 + 1)}"></i>${esc(op)} · <b>${elecciones ? Math.round(conteo[i].length / elecciones * 100) : 0}%</b></span>`).join('')}</div>
+    </div>
     ${e.opciones.map((op, i) => {
-      const n = conteo[i].length, gana = n === maximo && n > 0, esMia = mio.includes(i);
-      return `<button class="opcion ${esMia ? 'mia' : ''} ${gana ? 'gana' : ''}" data-a="votar" data-id="${esc(e.id)}" data-i="${i}">
-        <span class="relleno" style="width:0" data-ancho="${n / Math.max(votaron, 1) * 100}%"></span>
-        <span class="tilde ${esMia ? 'si' : ''}">${esMia ? '✓' : ''}</span><span class="txt">${esc(op)}</span>${pila(conteo[i].slice(0, 4).map(v => v.autor), 20)}<span class="num chico">${n}</span></button>
+      const n = conteo[i].length, gana = n === maximo && n > 0, esMia = mio.includes(i), pct = elecciones ? Math.round(n / elecciones * 100) : 0;
+      return `<button class="opcion ${esMia ? 'mia' : ''} ${gana ? 'gana' : ''} ${ui.porcion?.[e.id] === i ? 'resaltada' : ''}" data-a="votar" data-id="${esc(e.id)}" data-i="${i}" style="--c:${color(i * 2 + 1)}">
+        <span class="relleno" style="width:0" data-ancho="${pct}%"></span>
+        <span class="tilde ${esMia ? 'si' : ''}">${esMia ? '✓' : ''}</span><span class="txt">${esc(op)}</span>${pila(conteo[i].slice(0, 4).map(v => v.autor), 20)}<span class="num chico"><b>${pct}%</b> · ${n}</span></button>
         ${ui.verQuien[e.id] === i ? `<div class="mini" style="margin:4px 4px 0">${conteo[i].length ? esc(lista(conteo[i].map(v => a.nombre(v.autor)))) : 'Nadie todavía'}</div>` : ''}`;
     }).join('')}
-    <div class="renglon" style="margin-top:10px"><span class="mini" style="flex:1">${votaron} de ${a.aprobados.length} votaron · <button class="enlace" style="font-size:11px" data-a="ver-quien" data-id="${esc(e.id)}">ver quién</button></span>
+    <div class="mini" style="margin-top:8px;color:${mio.length && (miVoto.cambios ?? 0) >= 1 ? 'var(--tinta-2)' : 'var(--acento)'}">${e.cerrada ? 'Votación cerrada' : estadoVoto}</div>
+    <div class="renglon" style="margin-top:6px"><span class="mini" style="flex:1">${votaron} de ${a.aprobados.length} votaron · <button class="enlace" style="font-size:11px" data-a="ver-quien" data-id="${esc(e.id)}">ver quién</button></span>
       ${e.autor === a.yo ? `<button class="enlace" style="font-size:13px" data-a="cerrar-encuesta" data-id="${esc(e.id)}">${e.cerrada ? 'Reabrir' : 'Cerrar'}</button>
         <button class="borrar" data-a="borrar" data-tipo="encuesta" data-id="${esc(e.id)}" data-confirmar="¿Borrar la votación?">Borrar</button>` : botonOcultar(e)}</div></div>`;
+}
+
+// ── Valija (reglamento de equipaje) e ítems decomisados
+
+const PRENDAS = [
+  ['boxers', 'bóxers', 9], ['medias', 'pares de medias o soquetes', 4], ['remeras', 'remeras de manga corta o sin mangas', 10],
+  ['seleccion', 'camiseta de la Selección Argentina 🇦🇷', 1], ['short', 'short deportivo', 1], ['bermudas', 'bermudas', 2],
+  ['buzo', 'buzo o sweater', 1], ['urbanas', 'par de zapatillas urbanas (paseo/noche)', 1], ['deportivas', 'par de zapatillas deportivas', 1],
+];
+const ACCESORIOS = [['gorra', 'Gorra o gorro'], ['cinturon', 'Cinturón'], ['cepillo', 'Cepillo de dientes'], ['remedios', 'Medicamentos personales'],
+  ['notebook', 'Notebook o tablet'], ['auriculares', 'Auriculares']];
+const TOTAL_PRENDAS = PRENDAS.reduce((t, p) => t + p[2], 0);   // 30
+const tildadosDe = u => new Set(a.valijas[u]?.tildados ?? []);
+const prendasDe = u => { const t = tildadosDe(u); return PRENDAS.reduce((s, p) => s + (t.has(p[0]) ? p[2] : 0), 0); };
+
+const COMUNICADO = `<p><b>COMUNICADO OFICIAL | REGLAMENTO DE EQUIPAJE</b></p>
+<p>Estimado pasajero:</p>
+<p>Por medio de la presente, se informa que deberá respetar estrictamente el siguiente listado para el armado de su valija.</p>
+<p>El cumplimiento de estas disposiciones será obligatorio para todos los integrantes del grupo, sin excepción.</p>
+<p><b>⚠️ ACLARACIONES IMPORTANTES</b></p>
+<ol><li>Todo artículo que NO figure en el presente listado queda automáticamente excluido del equipaje autorizado.</li>
+<li>La ropa utilizada durante el viaje en avión deberá estar incluida dentro de las 30 prendas obligatorias. No se admitirán prendas adicionales por llevarlas puestas.</li>
+<li>Las cantidades establecidas deberán respetarse estrictamente. No se permiten modificaciones, reemplazos ni excepciones sin autorización previa.</li></ol>
+<p><b>🚨 RÉGIMEN DE MULTAS</b></p>
+<p>Todo pasajero que incumpla las cantidades o condiciones establecidas quedará sujeto a la multa correspondiente, cuya modalidad será informada por la organización.</p>`;
+
+function vValija() {
+  const t = tildadosDe(a.yo), mias = prendasDe(a.yo), circ = 2 * Math.PI * 25;
+  const fila = (k, texto, cant) => `<div class="fila ${t.has(k) ? 'hecha' : ''}"><button class="check ${t.has(k) ? 'si' : ''}" data-a="valija" data-k="${k}" aria-label="Tildar">${t.has(k) ? '✓' : ''}</button>
+    <span class="crece"><span class="t">${cant ? `<b class="num">${cant}</b> ` : ''}${esc(texto)}</span></span></div>`;
+  return `${titulo('Valija', '', volverA('volver-mas', 'Más'))}
+    <div class="tarjeta comunicado">
+      <b>📜 Comunicado oficial · Reglamento de equipaje</b>
+      <div class="chico" style="margin-top:4px">Obligatorio para todos, sin excepción. 30 prendas en total, incluida la ropa que llevás puesta en el avión.</div>
+      ${ui.verComunicado ? `<div class="texto-comunicado">${COMUNICADO}</div>` : ''}
+      <button class="enlace" style="margin-top:8px;font-size:13px" data-a="ver-comunicado">${ui.verComunicado ? 'Cerrar' : 'Leer el comunicado completo'}</button>
+    </div>
+
+    <div class="tarjeta progreso" style="margin-top:12px"><div class="anillo"><svg width="58" height="58"><circle class="fondo-a" cx="29" cy="29" r="25"/><circle class="lleno" cx="29" cy="29" r="25" stroke-dasharray="${circ}" stroke-dashoffset="${circ}" data-arco="${circ * (1 - mias / TOTAL_PRENDAS)}"/></svg><span>${mias}</span></div>
+      <div><b style="font-size:17px">${mias} de ${TOTAL_PRENDAS} prendas</b><div class="chico">${mias === TOTAL_PRENDAS ? 'Valija reglamentaria ✅' : 'Tildá lo que ya pusiste en la valija'}</div></div></div>
+
+    <div class="seccion-t">👕 Prendas de vestir · obligatorias</div>
+    <div class="lista">${PRENDAS.map(([k, txt, n]) => fila(k, txt, n)).join('')}</div>
+    <div class="seccion-t">🎒 Accesorios · opcionales</div>
+    <div class="lista">${ACCESORIOS.map(([k, txt]) => fila(k, txt)).join('')}</div>
+
+    <div class="seccion-t">Cómo va el grupo</div>
+    <div class="lista">${a.aprobados.map(m => {
+      const n = prendasDe(m.autor), falta = PRENDAS.filter(p => !tildadosDe(m.autor).has(p[0]));
+      return `<div class="fila" data-a="ver-valija" data-u="${esc(m.autor)}" style="cursor:pointer;flex-wrap:wrap">${av(m.autor, 30)}<span class="crece"><div class="renglon"><span class="t" style="flex:1">${esc(a.nombre(m.autor))}</span><b class="num">${n}/${TOTAL_PRENDAS}</b></div>
+        <span class="barra-valija"><span style="width:0" data-ancho="${n / TOTAL_PRENDAS * 100}%" class="${n === TOTAL_PRENDAS ? 'completa' : ''}"></span></span></span>
+        ${ui.valijaAbierta === m.autor ? `<div class="mini" style="width:100%;padding-left:42px">${falta.length ? `Le falta: ${esc(falta.map(p => `${p[2]} ${p[1]}`).join(', '))}` : 'Tiene todo ✅'}</div>` : ''}</div>`;
+    }).join('')}</div>
+
+    <div class="seccion-t">🚨 Ítems decomisados · ${a.decomisos.length} <button class="boton suave chico der" data-a="nuevo-decomiso">＋ Cargar</button></div>
+    ${a.decomisos.length ? `<div class="lista">${a.decomisos.map(d => `<div class="fila" data-registro="${esc(d.id)}" style="align-items:flex-start">
+        ${d.miniatura ? `<img class="foto-decomiso" src="data:image/jpeg;base64,${d.miniatura}" alt="">` : '<span class="foto-decomiso vacia">🚫</span>'}
+        <span class="crece"><div class="t">${esc(d.item)}</div><div class="s">${av(d.persona, 18)} ${esc(a.nombre(d.persona))}${d.multa ? ` · multa: <b>${esc(d.multa)}</b>` : ''}</div>
+          ${d.nota ? `<div class="s">${esc(d.nota)}</div>` : ''}<div class="mini">Lo cargó ${esc(a.nombre(d.autor))} · ${haceCuanto(d.fecha)}</div></span>
+        ${d.autor === a.yo ? `<button class="borrar" data-a="borrar" data-tipo="decomiso" data-id="${esc(d.id)}" data-confirmar="¿Borrar el decomiso?">✕</button>` : botonOcultar(d)}</div>`).join('')}</div>`
+      : '<p class="pie">Ningún ítem decomisado todavía. Si alguien lleva algo fuera del reglamento, cargalo acá.</p>'}`;
 }
 
 // ── Fotos
@@ -1345,6 +1448,7 @@ function descripcion(id) {
     mensaje: ['💬', `“${d.texto}”`], foto: ['🖼️', 'Una foto'], gasto: ['💲', `${d.descripcion} · ${plata(d.monto ?? 0, a.moneda)}`],
     tarea: ['📋', d.titulo], evento: ['📅', d.titulo], encuesta: ['📊', d.pregunta], juego: ['🎮', d.nombre],
     puntaje: ['🎯', `${numero(d.puntos ?? 0)} puntos de ${a.nombre(d.jugador)}`], equipos: ['🎲', d.titulo],
+    decomiso: ['🚨', `Decomiso: ${d.item} (${a.nombre(d.persona)})`],
   }[s.tipo] || ['•', s.tipo];
   return { ico: t[0], texto: t[1], quien };
 }
@@ -1719,6 +1823,45 @@ const hojas = {
     });
   },
 
+  /** Cambiar el voto en una votación de varias opciones: el único cambio permitido. */
+  cambiarVoto(e, mio, tocada) {
+    const sel = mio.includes(tocada) ? mio.filter(x => x !== tocada) : [...mio, tocada];
+    abrirHoja({
+      titulo: 'Cambiar mi voto', estado: {}, okTexto: 'Cambiar', puedeOk: () => sel.length > 0,
+      cuerpo: () => `<div class="aviso-fijo" style="margin-top:4px">⚠️ Solo podés cambiar tu voto <b>una vez</b> por votación. Después queda fijo.</div>
+        <b style="display:block;margin:10px 2px">${esc(e.pregunta)}</b>
+        <div class="lista elegir">${e.opciones.map((op, i) => `<div class="fila" data-ha="op" data-i="${i}"><span class="crece">${esc(op)}</span><span class="tilde ${sel.includes(i) ? 'si' : ''}">${sel.includes(i) ? '✓' : ''}</span></div>`).join('')}</div>`,
+      accion: (k, b) => { const i = +b.dataset.i; const p = sel.indexOf(i); p >= 0 ? sel.splice(p, 1) : sel.push(i); pintarHoja(); },
+      ok: () => { if (!confirm('¿Confirmás el cambio? Es el único que tenés en esta votación.')) return false; guardar('voto', Nuevo.voto(e.id, [...sel].sort(), 1)); },
+    });
+  },
+
+  decomiso() {
+    const e = { persona: a.aprobados.find(m => m.autor !== a.yo)?.autor ?? a.yo, item: '', multa: '', nota: '', miniatura: null, cargando: false };
+    abrirHoja({
+      titulo: 'Ítem decomisado', estado: e, okTexto: 'Cargar', puedeOk: () => e.item.trim() && !e.cargando,
+      cuerpo: () => `<label class="et">¿A quién?</label><select class="campo" data-hc="persona">${a.aprobados.map(m => `<option value="${esc(m.autor)}" ${m.autor === e.persona ? 'selected' : ''}>${esc(m.emoji)} ${esc(a.nombre(m.autor))}</option>`).join('')}</select>
+        <label class="et">¿Qué se decomisó?</label><input class="campo" data-hc="item" placeholder="Ej: 11ª remera, secador de pelo" value="${esc(e.item)}" maxlength="60">
+        <label class="et">Multa (opcional)</label><input class="campo" data-hc="multa" placeholder="Ej: paga el helado de todos" value="${esc(e.multa)}" maxlength="60">
+        <label class="et">Nota (opcional)</label><input class="campo" data-hc="nota" placeholder="Ej: la llevaba puesta y no contaba" value="${esc(e.nota)}" maxlength="120">
+        <label class="et">Foto de la prueba (opcional)</label>
+        <label class="boton gris chico" style="cursor:pointer">${e.miniatura ? '📷 Cambiar foto' : '📷 Sacar o elegir foto'}<input type="file" accept="image/*" hidden data-foto-decomiso></label>
+        ${e.cargando ? '<div class="cargando oscuro"></div>' : e.miniatura ? `<img class="foto-decomiso grande" src="data:image/jpeg;base64,${e.miniatura}" alt="">` : ''}`,
+      ok: () => {
+        const d = Nuevo.decomiso(e.persona, e.item.trim(), e.multa.trim() || undefined, e.nota.trim() || undefined, e.miniatura || undefined);
+        guardar('decomiso', d);
+        anunciar(`decomisó a ${a.nombre(e.persona) === 'Vos' ? 'sí mismo' : a.nombre(e.persona)}: ${d.item}${d.multa ? ` · multa: ${d.multa}` : ''} 🚨`, `decomiso:${d.id}`);
+      },
+    });
+    $('#hoja').addEventListener('change', async function foto(ev) {
+      if (!hoja || hoja.titulo !== 'Ítem decomisado') return $('#hoja').removeEventListener('change', foto);
+      if (ev.target.dataset.fotoDecomiso == null || !ev.target.files[0]) return;
+      e.cargando = true; pintarHoja();
+      try { e.miniatura = await miniatura(ev.target.files[0], 480); } catch (err) { avisar(mensajeError(err)); }
+      e.cargando = false; pintarHoja();
+    });
+  },
+
   aviso() {
     const e = { texto: a.viaje.aviso ?? '' };
     abrirHoja({
@@ -1837,14 +1980,32 @@ const acciones = {
   'nuevo-evento': () => hojas.evento(),
   'ver-pasados': () => { ui.verPasados = !ui.verPasados; render(); },
   'nueva-encuesta': () => hojas.encuesta(),
+  // Se vota con un toque; el voto se puede cambiar una sola vez, con un cartel que lo confirma.
   votar: b => {
     const e = a.encuestas.find(x => x.id === b.dataset.id), i = +b.dataset.i;
     if (!e) return;
     if (e.cerrada) { ui.verQuien[e.id] = ui.verQuien[e.id] === i ? undefined : i; return render(); }
-    let mio = [...(a.votos.find(v => v.encuesta === e.id && v.autor === a.yo)?.elegidas ?? [])];
-    mio = mio.includes(i) ? mio.filter(x => x !== i) : e.multiple ? [...mio, i] : [i];
-    guardar('voto', Nuevo.voto(e.id, mio));
+    const v = a.votos.find(x => x.encuesta === e.id && x.autor === a.yo);
+    const mio = v?.elegidas ?? [];
+    if (!mio.length) { guardar('voto', Nuevo.voto(e.id, [i], v ? (v.cambios ?? 0) : undefined)); navigator.vibrate?.(20); return; }
+    if ((v.cambios ?? 0) >= 1) return avisar('Ya cambiaste tu voto una vez: en esta votación queda fijo.');
+    if (!e.multiple) {
+      if (mio.includes(i)) return avisar(`Ya votaste “${e.opciones[i]}”. Para cambiar, tocá otra opción.`);
+      if (confirm(`¿Cambiar tu voto a “${e.opciones[i]}”?\n\nSolo podés cambiarlo UNA vez por votación. Después queda fijo.`)) guardar('voto', Nuevo.voto(e.id, [i], 1));
+      return;
+    }
+    hojas.cambiarVoto(e, mio, i);
   },
+  porcion: b => { ui.porcion = ui.porcion || {}; ui.porcion[b.dataset.id] = ui.porcion[b.dataset.id] === +b.dataset.i ? undefined : +b.dataset.i; render(); },
+  valija: b => {
+    const t = tildadosDe(a.yo);
+    t.has(b.dataset.k) ? t.delete(b.dataset.k) : t.add(b.dataset.k);
+    guardar('valija', Nuevo.valija([...t]));
+    if (t.has(b.dataset.k)) navigator.vibrate?.(15);
+  },
+  'ver-comunicado': () => { ui.verComunicado = !ui.verComunicado; render(); },
+  'ver-valija': b => { ui.valijaAbierta = ui.valijaAbierta === b.dataset.u ? null : b.dataset.u; render(); },
+  'nuevo-decomiso': () => hojas.decomiso(),
   'ver-quien': b => { const id = b.dataset.id; ui.verQuien[id] = ui.verQuien[id] == null ? 0 : (ui.verQuien[id] + 1 < a.encuestas.find(e => e.id === id).opciones.length ? ui.verQuien[id] + 1 : undefined); render(); },
   'cerrar-encuesta': b => { const e = a.encuestas.find(x => x.id === b.dataset.id); if (e) guardar('encuesta', { ...e, cerrada: !e.cerrada }); },
   columnas: b => { ui.columnas = +b.dataset.v; render(); },
@@ -1878,7 +2039,7 @@ const acciones = {
   notis: async () => { await Notification.requestPermission(); render(); },
   borrar: b => {
     if (b.dataset.confirmar && !confirm(b.dataset.confirmar)) return;
-    const coleccion = { puntaje: a.puntajes, juego: a.juegos, tarea: a.tareas, gasto: a.gastos, evento: a.eventos, encuesta: a.encuestas }[b.dataset.tipo];
+    const coleccion = { puntaje: a.puntajes, juego: a.juegos, tarea: a.tareas, gasto: a.gastos, evento: a.eventos, encuesta: a.encuestas, decomiso: a.decomisos }[b.dataset.tipo];
     const x = coleccion?.find(y => y.id === b.dataset.id);
     if (x) { borrar(b.dataset.tipo, x); if (b.dataset.tipo === 'juego') ui.juego = null; render(); }
   },
@@ -1887,14 +2048,14 @@ const acciones = {
 /** Lleva al detalle de algo avisado en el chat y lo resalta. */
 function abrirEnlace(enlace) {
   const [tipo, id] = enlace.split(':');
-  const existe = { tarea: a.tareas, encuesta: a.encuestas, evento: a.eventos, juego: a.juegos, equipos: a.sorteos }[tipo];
+  const existe = { tarea: a.tareas, encuesta: a.encuestas, evento: a.eventos, juego: a.juegos, equipos: a.sorteos, decomiso: a.decomisos }[tipo];
   if (existe && !existe.some(x => x.id === id)) return avisar('Ya no está (lo borraron o lo ocultaron)');
   ui.cambioDeVista = true; ui.juego = null;
   if (tipo === 'juego') { ui.pestana = RANKING; ui.juego = id; }
   else if (tipo === 'equipos') { ui.pestana = RANKING; ui.verTodosSorteos = a.sorteos[0]?.id !== id; }
   else {
     ui.pestana = MAS;
-    ui.seccion = { tarea: 'tareas', encuesta: 'votaciones', evento: 'agenda', fotos: 'fotos' }[tipo] || null;
+    ui.seccion = { tarea: 'tareas', encuesta: 'votaciones', evento: 'agenda', fotos: 'fotos', decomiso: 'valija' }[tipo] || null;
     if (tipo === 'tarea') { ui.soloMias = false; ui.ocultarHechas = false; }
     if (tipo === 'evento') { const ev = a.eventos.find(x => x.id === id); if (ev && ev.inicio < ahora() - 3 * 3600000) ui.verPasados = true; }
   }

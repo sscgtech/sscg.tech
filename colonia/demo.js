@@ -116,6 +116,12 @@ class Demo {
     eventos.forEach(([titulo, h, lugar, latitud, longitud], i) => this.poner('evento', {
       id: `e-demo-${i}`, titulo, inicio: hoy.getTime() + h * 3600000, lugar, nota: '', latitud, longitud,
     }, yo, 200));
+    // Valijas e ítems decomisados
+    const todasLasPrendas = ['boxers', 'medias', 'remeras', 'seleccion', 'short', 'bermudas', 'buzo', 'urbanas', 'deportivas'];
+    const armado = { 'demo-juli': todasLasPrendas, 'demo-pato': todasLasPrendas.slice(0, 5), 'demo-caro': todasLasPrendas.slice(0, 8), [yo]: ['boxers', 'medias', 'remeras', 'cepillo'] };
+    for (const [u, tildados] of Object.entries(armado)) this.poner('valija', { id: `val-${v}-${u}`, tildados, fecha: ahora - 3600000 }, u, 60);
+    this.poner('decomiso', { id: 'dec-demo-1', persona: 'demo-pato', item: 'Secador de pelo', multa: 'Paga el helado de todos', nota: 'Estaba escondido entre las bermudas', fecha: ahora - 25 * 60000 }, 'demo-juli', 25);
+    this.poner('mensaje', { id: 'msg-demo-aviso-3', texto: '🏄 Juli decomisó a Pato: Secador de pelo · multa: Paga el helado de todos 🚨', fecha: ahora - 25 * 60000, clase: 'sistema', enlace: 'decomiso:dec-demo-1' }, 'demo-juli', 25);
     // Votaciones
     this.poner('encuesta', { id: 'enc-1', pregunta: '¿Dónde cenamos mañana?', opciones: ['Parrilla del puerto', 'Pizza en casa', 'Pescado en la rambla'],
       multiple: false, cerrada: false, fecha: ahora - 3600000 }, 'demo-juli', 60);
