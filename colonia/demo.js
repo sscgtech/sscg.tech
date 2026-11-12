@@ -135,6 +135,8 @@ class Demo {
       multiple: false, cerrada: false, fecha: ahora - 3600000 }, 'demo-juli', 60);
     this.poner('encuesta', { id: 'enc-2', pregunta: '¿A qué hora salimos para la playa?', opciones: ['10:00', '11:30', 'Después de almorzar'],
       multiple: true, cerrada: false, fecha: ahora - 7200000 }, 'demo-nico', 120);
+    for (const [u, c] of [['demo-juli', 'demo-nico'], ['demo-pato', 'demo-nico'], ['demo-caro', 'demo-juli'], ['demo-lu', 'demo-nico'], ['demo-tomi', 'demo-juli'], ['demo-nico', yo]])
+      this.poner('mvp', { id: `mvp-${v}-${u}`, candidato: c, fecha: new Date(ahora - 30 * 60000) }, u);
     const votosCena = { 'demo-juli': [0], 'demo-pato': [0], 'demo-caro': [2], 'demo-nico': [1], 'demo-lu': [0] };
     for (const [u, e] of Object.entries(votosCena)) this.poner('voto', { id: `v-enc-1-${u}`, encuesta: 'enc-1', elegidas: e }, u);
     const votosPlaya = { 'demo-pato': [1, 2], 'demo-tomi': [2], 'demo-lu': [1] };

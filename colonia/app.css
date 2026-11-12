@@ -401,3 +401,7 @@ a.boton { text-decoration: none; }
 .caras b { font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes aparecer-cara { from { opacity: 0; transform: scale(.6); } }
 .visor .visor-doc { width: min(100%, 900px); height: 80vh; border: 0; background: #fff; border-radius: 8px; }
+
+/* MVP del viaje */
+.mvp-voto { position: relative; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(224, 168, 0, .15); color: var(--acento); cursor: pointer; margin-bottom: 6px; }
+.mvp-voto select { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; font-size: 16px; }

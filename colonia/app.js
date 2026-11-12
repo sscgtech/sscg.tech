@@ -69,7 +69,7 @@ const FECHAS = {
   viaje: ['inicio', 'fin', 'revelarA', 'avisoFecha'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
   juego: ['fecha'], puntaje: ['fecha'], equipos: ['fecha'], tarea: ['dia'], marca: ['fecha'], gasto: ['fecha'],
   evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'], valija: ['fecha'], decomiso: ['fecha'],
-  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'],
+  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'], mvp: ['fecha'],
 };
 function codificar(tipo, obj) {
   const o = {};
@@ -102,6 +102,7 @@ const Nuevo = {
   decision: (usuario, aprobado, admin) => ({ id: `d-${a.viajeID}-${usuario}-${a.yo}`, autor: '', usuario, aprobado, admin, fecha: ahora() }),
   oculto: (registro, oculto) => ({ id: `o-${registro}-${a.yo}`, autor: '', registro, oculto, fecha: ahora() }),
   reporte: (registro, usuario, motivo) => ({ id: `rp-${registro}-${a.yo}`, autor: '', registro, usuario, motivo, fecha: ahora() }),
+  mvp: candidato => ({ id: `mvp-${a.viajeID}-${a.yo}`, autor: '', candidato, fecha: ahora() }),
   bloqueo: (usuario, bloqueado) => ({ id: `bl-${a.viajeID}-${a.yo}-${usuario}`, autor: '', usuario, bloqueado, fecha: ahora() }),
   ajustes: viaje => ({ id: `a-${a.viajeID}-${a.yo}`, autor: '', viaje, fecha: ahora() }),
   juego: (nombre, emoji, ganaMayor) => ({ id: nuevoID('j'), autor: '', nombre, emoji, ganaMayor, fecha: ahora() }),
@@ -248,6 +249,7 @@ class NubeCloudKit {
     };
     if (resumen) fields.resumen = { value: resumen.slice(0, 180) };
     if (archivo) fields.archivo = { value: archivo };
+    if (s.borrado) { fields.archivo = { value: null }; fields.resumen = { value: null }; }   // borrado de verdad
     // Igual que la app (.allKeys): pisa lo que haya. Si el registro ya existe hace falta su etiqueta de cambio.
     for (let intento = 0; intento < 3; intento++) {
       const rec = { recordType: 'Dato', recordName: s.id, fields };
@@ -291,7 +293,7 @@ const a = {
   leidosHasta: leerLS('leidosHasta', 0),
   viaje: null, miembros: {}, decisiones: {}, mensajes: [], ubicaciones: {}, juegos: [], puntajes: [], tareas: [], marcas: [],
   gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [], valijas: {}, decomisos: [],
-  organizadores: new Set(), ocultos: new Set(), ocultosLista: [], reportes: [], bloqueados: new Set(),
+  organizadores: new Set(), ocultos: new Set(), ocultosLista: [], reportes: [], bloqueados: new Set(), votosMVP: {},
   fichas: [], duenoFicha: {}, fichaDe: {}, miReclamoPerdido: false, documentos: [], llaves: [], accesos: {},
   get fichasLibres() { return this.fichas.filter(f => !this.duenoFicha[f.id]); },
   /** Hay que mostrar "¿Quién sos?" sí o sí: entró con el link y no eligió (o perdió el que eligió). */
@@ -354,6 +356,20 @@ function activarDemo() {
   guardarLocal();
 }
 function guardarLocal() { guardarLS('perfil', a.perfil); guardarLS('viajeID', a.viajeID); guardarLS('demo', a.esDemo); }
+
+/** "Borrar mis datos y salir": vacía en el servidor lo personal mío de este viaje y sale (lo del grupo queda). */
+const TIPOS_PERSONALES = new Set(['miembro', 'mensaje', 'ubicacion', 'foto', 'voto', 'mvp', 'reclamo', 'llave', 'reporte', 'bloqueo', 'valija', 'marca']);
+async function borrarMisDatos() {
+  if (!a.viajeID || a.esDemo) return;
+  const misDocs = new Set(a.documentos.filter(d => a.duenoDe(d.persona) === a.yo).map(d => d.id));
+  const mios = [...a.sobres.values()].filter(s => s.autor === a.yo && !s.borrado &&
+    (TIPOS_PERSONALES.has(s.tipo) || (s.tipo === 'documento' && misDocs.has(s.id)) || (s.tipo === 'acceso' && [...misDocs].some(d => s.id.startsWith(`ac-${d}-`)))));
+  avisar('Borrando tus datos…', true);
+  for (const s of mios) { try { await a.servidor.guardar({ ...s, datos: {}, borrado: true }, a.viajeID, null, null); } catch {} }
+  try { localStorage.removeItem(`colonia-llave-${a.yo}`); } catch {}
+  salirDelViaje();
+  avisar('Listo: borramos tus datos de ese viaje.', true);
+}
 
 function salirDelViaje() {
   detener();
@@ -781,6 +797,8 @@ function reconstruir() {
   a.eventos = de('evento').filter(ok).sort((x, y) => x.inicio - y.inicio);
   a.encuestas = de('encuesta').filter(ok).sort((x, y) => y.fecha - x.fecha);
   a.votos = de('voto').filter(ok);
+  // MVP del viaje: vale el último voto de cada uno; no a uno mismo; solo gente aprobada.
+  a.votosMVP = Object.fromEntries(Object.values(ultimaPor(de('mvp').filter(x => a.cuenta(x.autor) && a.cuenta(x.candidato) && x.candidato !== x.autor), 'autor')).map(x => [x.autor, x.candidato]));
   a.fotos = de('foto').filter(visible).sort((x, y) => y.fecha - x.fecha);
   a.sorteos = de('equipos').filter(ok).sort((x, y) => y.fecha - x.fecha);
   a.valijas = {};
@@ -802,6 +820,20 @@ function totales(j) {
   return Object.entries(suma).map(([jugador, puntos]) => ({ jugador, puntos }))
     .sort((x, y) => j.ganaMayor ? y.puntos - x.puntos : x.puntos - y.puntos);
 }
+/** MVP del viaje: más votos primero; empate = mismo puesto y orden alfabético. */
+function rankingMVP() {
+  const por = {};
+  for (const [votante, c] of Object.entries(a.votosMVP)) (por[c] ||= []).push(votante);
+  const filas = Object.entries(por).map(([usuario, vs]) => ({ usuario, votos: vs.length, votantes: vs.sort((x, y) => a.nombre(x).localeCompare(a.nombre(y))) }))
+    .sort((x, y) => y.votos - x.votos || a.nombre(x.usuario).localeCompare(a.nombre(y.usuario)));
+  filas.forEach((f, i) => { f.puesto = i > 0 && filas[i - 1].votos === f.votos ? filas[i - 1].puesto : i + 1; });
+  return filas;
+}
+function votarMVP(candidato) {
+  if (!candidato || candidato === a.yo) return;
+  guardar('mvp', Nuevo.mvp(candidato));
+}
+
 function rankingGeneral(porPosiciones) {
   const total = {}, ganados = {};
   for (const m of a.aprobados) total[m.autor] = 0;
@@ -1349,6 +1381,7 @@ function vJuegos() {
           <span class="barra" style="--c:${a.color(f.jugador)}" data-ancho="${Math.max(f.puntos / maximo * 100, 2)}%"></span></span></div>
         ${ui.tocado === f.jugador ? `<div class="detalle-j">${a.juegos.map(j => { const t = totales(j), k = t.findIndex(x => x.jugador === f.jugador); return k < 0 ? '' : `${esc(j.emoji)} ${esc(j.nombre)}: ${k + 1}º con ${numero(t[k].puntos)}<br>`; }).join('') || 'Sin puntajes todavía'}</div>` : ''}`).join('')}
     </div>
+    ${vMVP()}
     <h2>Juegos <button class="boton suave chico mas" data-a="nuevo-juego">＋ Nuevo</button></h2>
     ${a.juegos.length ? '' : vacio('🎮', 'Todavía no hay juegos', 'Creá el primero: truco, ping pong, mini golf…')}
     ${a.juegos.map(j => {
@@ -1357,6 +1390,24 @@ function vJuegos() {
         <span class="juego-emoji">${esc(j.emoji)}</span><span style="flex:1;min-width:0"><b>${esc(j.nombre)}</b><div class="chico">${lider ? (lider.jugador === a.yo ? `Vas primero con ${numero(lider.puntos)}` : `Gana ${esc(a.nombre(lider.jugador))} con ${numero(lider.puntos)}`) : 'Sin puntajes todavía'}</div></span>
         ${pila(t.slice(0, 3).map(x => x.jugador), 26)}<span style="color:var(--tinta-3)">›</span></button>`;
     }).join('')}`;
+}
+
+function vMVP() {
+  const filas = rankingMVP(), maximo = Math.max(filas[0]?.votos || 1, 1), mio = a.votosMVP[a.yo];
+  const candidatos = a.aprobados.filter(m => m.autor !== a.yo);
+  return `<div class="tarjeta" style="margin-top:16px">
+    <b style="color:#E0A800">⭐️ MVP del viaje</b>
+    <div class="mini" style="margin:6px 0 10px">Cada uno vota a una persona (no a sí mismo). Los votos se ven y podés cambiar el tuyo hasta el final.</div>
+    <label class="mvp-voto">${mio ? `${av(mio, 24)}<span style="flex:1"><b>Tu voto: ${esc(a.nombre(mio))}</b></span><span class="enlace">Cambiar</span>` : '<span style="flex:1"><b>👆 Votá a tu MVP</b></span>'}
+      <select data-mvp aria-label="Elegí tu MVP"${candidatos.length ? '' : ' disabled'}><option value="">${mio ? 'Cambiar mi voto…' : 'Elegí a alguien…'}</option>${candidatos.map(m => `<option value="${esc(m.autor)}"${m.autor === mio ? ' selected' : ''}>${esc(m.nombre)}</option>`).join('')}</select></label>
+    ${filas.length ? '' : '<p class="pie" style="margin:10px 0 0">Todavía nadie votó.</p>'}
+    ${filas.map(f => `
+      <div class="rank-fila" data-a="tocar-mvp" data-u="${esc(f.usuario)}">
+        <span class="puesto ${f.puesto <= 3 ? '' : 'n'}">${f.puesto <= 3 ? ['🥇', '🥈', '🥉'][f.puesto - 1] : `${f.puesto}º`}</span>${av(f.usuario, 30)}
+        <span class="crece"><span class="arr"><span class="nom">${esc(a.nombre(f.usuario))}</span><span class="pts num">${f.votos} ${f.votos === 1 ? 'voto' : 'votos'}</span></span>
+        <span class="barra" style="--c:${a.color(f.usuario)}" data-ancho="${Math.max(f.votos / maximo * 100, 2)}%"></span></span></div>
+      ${ui.tocadoMVP === f.usuario ? `<div class="detalle-j">Lo votaron: ${f.votantes.map(v => esc(a.nombre(v))).join(', ')}</div>` : ''}`).join('')}
+  </div>`;
 }
 
 function sorteoPublicado(s) {
@@ -1727,7 +1778,15 @@ function vGrupo() {
     <div class="lista" style="margin-top:16px">
       ${a.soyAdmin && a.yo !== a.creador ? '<button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="dejar-organizar">Dejar de organizar</button>' : ''}
       <button class="fila" style="width:100%;text-align:left;color:var(--rojo)" data-a="salir" >${a.esDemo ? 'Salir del viaje de ejemplo' : 'Salir del viaje'}</button>
+      ${a.esDemo ? '' : '<button class="fila" style="width:100%;text-align:left;color:var(--rojo)" data-a="borrar-mis-datos">Borrar mis datos y salir</button>'}
     </div>
+    <div class="seccion-t">Ayuda</div>
+    <div class="lista">
+      <a class="fila" style="color:var(--acento)" href="https://sscg.tech/soporte/" target="_blank" rel="noopener">❓ Ayuda y soporte</a>
+      <a class="fila" style="color:var(--acento)" href="mailto:sscg.tech@gmail.com?subject=Colonia">✉️ Escribinos: sscg.tech@gmail.com</a>
+      <a class="fila" style="color:var(--acento)" href="privacidad/" target="_blank" rel="noopener">🔒 Privacidad</a>
+    </div>
+    <p class="pie">No se permite contenido ofensivo ni abusivo. Podés reportar un mensaje o una foto, o bloquear a alguien.</p>
     <p class="pie">${a.ultimaSincronizacion ? `Sincronizado ${haceCuanto(a.ultimaSincronizacion)}${a.esDemo ? ' · modo ejemplo' : ''}` : ''}</p>`;
 }
 
@@ -2315,6 +2374,7 @@ const acciones = {
   crear: () => crearViaje(inicioCampos.nombre.trim(), inicioCampos.destino.trim()),
   demo: () => { activarDemo(); arrancar(); ui.cambioDeVista = true; render(); },
   'salir-ya': () => salirDelViaje(),
+  'borrar-mis-datos': () => { if (confirm('¿Borrar tus datos de este viaje?\nSe borran tu perfil, tus mensajes, tu ubicación, tus fotos, tus votos y tus documentos, y salís. Lo que cargaste para todos (gastos, tareas, agenda, juegos) queda para el grupo. No se puede deshacer.')) borrarMisDatos(); },
   salir: () => { if (confirm(a.esDemo ? '¿Salir del viaje de ejemplo?' : '¿Salir del viaje?\nPodés volver a entrar con el link, pero el organizador te tiene que aprobar de nuevo.')) salirDelViaje(); },
   pestana: b => {
     const i = +b.dataset.i;
@@ -2351,6 +2411,7 @@ const acciones = {
   'armar-equipos': b => hojas.equipos(a.juegos.find(j => j.id === b.dataset.juego)),
   'ver-sorteos': () => { ui.verTodosSorteos = !ui.verTodosSorteos; render(); },
   'por-pos': b => { ui.porPosiciones = b.dataset.v === '1'; render(); },
+  'tocar-mvp': b => { ui.tocadoMVP = ui.tocadoMVP === b.dataset.u ? null : b.dataset.u; render(); },
   'tocar-rank': b => { ui.tocado = ui.tocado === b.dataset.u ? null : b.dataset.u; render(); },
   'nuevo-juego': () => hojas.juego(),
   'abrir-juego': b => { ui.juego = b.dataset.id; ui.cambioDeVista = true; history.pushState({ v: 'juego' }, ''); render(); },
@@ -2512,6 +2573,7 @@ document.addEventListener('change', e => {
   if (e.target.matches('[data-a=entrada]')) guardarViaje({ ...a.viaje, entradaCerrada: e.target.checked ? undefined : true });
   if (e.target.matches('[data-a=auto-aprobar]')) guardarViaje({ ...a.viaje, autoAprobar: e.target.checked || undefined });
   if (e.target.matches('[data-subir-fotos]')) { subirFotos([...e.target.files]); e.target.value = ''; }
+  if (e.target.matches('[data-mvp]') && e.target.value) votarMVP(e.target.value);
   if (e.target.matches('[data-cargar-fichas]')) { cargarFichas([...e.target.files]); e.target.value = ''; }
   if (e.target.matches('[data-mi-foto]') && e.target.files[0]) {
     const m = a.miembros[a.yo];
