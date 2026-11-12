@@ -69,6 +69,7 @@ const FECHAS = {
   viaje: ['inicio', 'fin', 'revelarA', 'avisoFecha'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
   juego: ['fecha'], puntaje: ['fecha'], equipos: ['fecha'], tarea: ['dia'], marca: ['fecha'], gasto: ['fecha'],
   evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'], valija: ['fecha'], decomiso: ['fecha'],
+  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [],
 };
 function codificar(tipo, obj) {
   const o = {};
@@ -112,6 +113,71 @@ const Nuevo = {
   voto: (encuesta, elegidas, cambios) => ({ id: `v-${encuesta}-${a.yo}`, autor: '', encuesta, elegidas, cambios }),
   valija: tildados => ({ id: `val-${a.viajeID}-${a.yo}`, autor: '', tildados, fecha: ahora() }),
   decomiso: (persona, item, multa, nota, miniatura) => ({ id: nuevoID('dec'), autor: '', persona, item, multa, nota, miniatura, fecha: ahora() }),
+  // Perfiles armados ("¿Quién sos?") y documentos cifrados (ver Modelo.swift)
+  ficha: (nombre, foto, color, orden) => ({ id: `pf-${a.viajeID}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`, autor: '', nombre, foto, color, orden, fecha: ahora() }),
+  reclamo: ficha => ({ id: `rc-${a.viajeID}-${a.yo}`, autor: '', ficha, fecha: ahora() }),
+  liberacion: (ficha, usuario) => ({ id: nuevoID('lb'), autor: '', ficha, usuario, fecha: ahora() }),
+  llave: (dispositivo, publica) => ({ id: `ll-${a.viajeID}-${a.yo}-${dispositivo}`, autor: '', publica, dispositivo: 'Web', fecha: ahora() }),
+  documento: (id, persona, meta, contenido) => ({ id, autor: '', persona, meta, contenido, fecha: ahora() }),
+  acceso: (documento, llave, envuelta) => ({ id: `ac-${documento}-${llave}`, autor: '', documento, llave, envuelta }),
+};
+
+// ───────────────────────── Cifrado de documentos (el mismo esquema que Cifrado.swift)
+// Cada documento: clave AES-256 propia, AES-GCM (nonce ‖ cifrado ‖ tag). La clave se envuelve para cada dispositivo
+// (iPhone o navegador) del dueño y de los organizadores: ECDH P-256 con una clave efímera + HKDF-SHA256 + AES-GCM.
+
+const bytesDe64 = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+function b64De(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+const unir = (...partes) => { const r = new Uint8Array(partes.reduce((n, p) => n + p.length, 0)); let i = 0; for (const p of partes) { r.set(p, i); i += p.length; } return r; };
+const Cifra = {
+  sal: new TextEncoder().encode('colonia-documentos'),
+  async sellar(datos, clave) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    return unir(iv, new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, clave, datos)));
+  },
+  async abrir(datos, clave) {
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: datos.slice(0, 12) }, clave, datos.slice(12)));
+  },
+  aes: crudo => crypto.subtle.importKey('raw', crudo, 'AES-GCM', true, ['encrypt', 'decrypt']),
+  async kek(privada, publica) {
+    const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: publica }, privada, 256);
+    const base = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: this.sal, info: new Uint8Array() }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  publica: crudo => crypto.subtle.importKey('raw', crudo, { name: 'ECDH', namedCurve: 'P-256' }, true, []),
+  async envolver(clave, publica65) {
+    const efimera = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+    const k = await this.kek(efimera.privateKey, await this.publica(publica65));
+    const cruda = new Uint8Array(await crypto.subtle.exportKey('raw', clave));
+    return unir(new Uint8Array(await crypto.subtle.exportKey('raw', efimera.publicKey)), await this.sellar(cruda, k));
+  },
+  async desenvolver(envuelta, privada) {
+    const k = await this.kek(privada, await this.publica(envuelta.slice(0, 65)));
+    return this.aes(await this.abrir(envuelta.slice(65), k));
+  },
+};
+
+/** La clave privada de este navegador (no sale de acá). Una por Apple ID. */
+const llaveLocal = {
+  cache: null,
+  async cargar() {
+    if (this.cache?.yo === a.yo) return this.cache;
+    const k = `colonia-llave-${a.yo}`;
+    let g = leerLS(k);
+    if (!g) {
+      const par = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+      g = { dispositivo: crypto.randomUUID().slice(0, 8).toUpperCase(), privada: await crypto.subtle.exportKey('jwk', par.privateKey),
+            publica: b64De(new Uint8Array(await crypto.subtle.exportKey('raw', par.publicKey))) };
+      guardarLS(k, g);
+    }
+    const privada = await crypto.subtle.importKey('jwk', g.privada, { name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
+    this.cache = { yo: a.yo, dispositivo: g.dispositivo, publica: g.publica, privada };
+    return this.cache;
+  },
 };
 
 // ───────────────────────── Servidor real: CloudKit JS
@@ -224,6 +290,20 @@ const a = {
   viaje: null, miembros: {}, decisiones: {}, mensajes: [], ubicaciones: {}, juegos: [], puntajes: [], tareas: [], marcas: [],
   gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [], valijas: {}, decomisos: [],
   organizadores: new Set(), ocultos: new Set(), ocultosLista: [],
+  fichas: [], duenoFicha: {}, fichaDe: {}, miReclamoPerdido: false, documentos: [], llaves: [], accesos: {},
+  get fichasLibres() { return this.fichas.filter(f => !this.duenoFicha[f.id]); },
+  /** Hay que mostrar "¿Quién sos?" sí o sí: entró con el link y no eligió (o perdió el que eligió). */
+  get debeElegirFicha() {
+    if (!this.viaje || this.yo === this.creador || this.fichaDe[this.yo] || !this.fichasLibres.length) return false;
+    return !this.miembros[this.yo] || this.miReclamoPerdido;
+  },
+  /** La foto de alguien (data URL): la que puso él o la de su perfil armado. */
+  foto(u) {
+    const f = this.miembros[u]?.foto || this.fichas.find(x => x.id === this.fichaDe[u])?.foto;
+    return f ? `data:image/jpeg;base64,${f}` : null;
+  },
+  duenoDe(persona) { return persona?.startsWith('pf-') ? this.duenoFicha[persona] : persona; },
+  nombrePersona(p) { return this.fichas.find(f => f.id === p)?.nombre ?? this.nombre(p); },
 
   /** El que creó el viaje: siempre organiza y no se lo puede sacar. */
   get creador() { return this.viaje?.autor; },
@@ -232,8 +312,9 @@ const a = {
   estado(u) {
     if (u === this.creador) return 'aprobado';
     const d = this.decisiones[u];
-    if (!d) return this.viaje?.autoAprobar ? 'aprobado' : 'pendiente';
-    return d.aprobado ? 'aprobado' : 'rechazado';
+    if (d) return d.aprobado ? 'aprobado' : 'rechazado';
+    if (this.fichaDe[u]) return 'aprobado';   // eligió su perfil armado: entra directo
+    return this.viaje?.autoAprobar ? 'aprobado' : 'pendiente';
   },
   get miEstado() { return this.estado(this.yo); },
   get aprobados() {
@@ -275,6 +356,7 @@ function guardarLocal() { guardarLS('perfil', a.perfil); guardarLS('viajeID', a.
 function salirDelViaje() {
   detener();
   a.viajeID = null; a.sobres = new Map(); a.desde = null;
+  llavePublicada = false; accesosEnviados.clear(); clavesDoc.clear(); metasDoc.clear();
   if (a.esDemo) { a.esDemo = false; a.servidor = a.nube; a.yo = a.nube?.yo || ''; }
   reconstruir(); guardarLocal();
   ui.pestana = CHAT; ui.seccion = null; ui.juego = null;
@@ -318,7 +400,8 @@ async function unirse(codigo) {
         a.viajeID = null; a.sobres = new Map(); a.desde = null; reconstruir(); guardarLocal();
         throw new Error('Este viaje no está aceptando gente nueva por ahora. Avisale a quien organiza.');
       }
-      await enviar('miembro', Nuevo.miembro(codigo, a.perfil));
+      // Con perfiles armados libres, primero elige quién es ("¿Quién sos?") y ahí se manda.
+      if (!a.fichasLibres.length) await enviar('miembro', Nuevo.miembro(codigo, { ...a.perfil, nombre: a.perfil.nombre || 'Sin nombre' }));
     }
     arrancar();
   });
@@ -328,6 +411,147 @@ function actualizarPerfil(p) {
   a.perfil = p; guardarLocal();
   const m = a.miembros[a.yo];
   if (m) guardar('miembro', { ...m, nombre: p.nombre, emoji: p.emoji, color: p.color });
+}
+
+// ── Perfiles armados ("¿Quién sos?")
+
+/** "Soy yo": queda atado a mi Apple ID, sale de la lista y entro directo con ese nombre y esa foto. */
+function elegirFicha(f) {
+  if (a.duenoFicha[f.id]) return avisar('Ese perfil ya lo eligió otro');
+  const antes = a.miembros[a.yo] ? a.estado(a.yo) : 'pendiente';
+  a.perfil = { nombre: f.nombre, emoji: a.perfil?.emoji || '🙂', color: f.color ?? 0 }; guardarLocal();
+  guardar('reclamo', Nuevo.reclamo(f.id));
+  const m = a.miembros[a.yo] || Nuevo.miembro(a.viajeID, a.perfil);
+  guardar('miembro', { ...m, nombre: f.nombre, color: f.color ?? 0 });
+  if (antes !== 'aprobado') guardar('mensaje', Nuevo.mensaje(`👋 ${f.nombre} se sumó al viaje`, 'sistema'));
+}
+/** No está en la lista: pide entrar como siempre (si tenía un "soy yo" que ya no vale, lo borra). */
+async function noEstoyEnLaLista(nombre) {
+  if (nombre && (!a.perfil?.nombre || !a.miembros[a.yo])) { a.perfil = { ...(a.perfil || {}), nombre }; guardarLocal(); }
+  const r = a.sobres.get(`rc-${a.viajeID}-${a.yo}`);
+  if (r && !r.borrado) borrar('reclamo', { ...r.datos, autor: a.yo });
+  if (!a.miembros[a.yo]) await enviar('miembro', Nuevo.miembro(a.viajeID, { ...a.perfil, nombre: a.perfil.nombre || 'Sin nombre' }));
+  a.miReclamoPerdido = false; render();
+}
+function liberarFicha(f) {
+  const u = a.duenoFicha[f.id];
+  if (a.soyAdmin && u) guardar('liberacion', Nuevo.liberacion(f.id, u));
+}
+/** Recorte cuadrado al centro, JPEG (base64). */
+async function cuadrada(file, lado = 400) {
+  const img = await createImageBitmap(file).catch(() => null) || await new Promise((ok, mal) => {
+    const i = new Image(); i.onload = () => ok(i); i.onerror = () => mal(new Error('No pude leer la imagen (probá con JPG)')); i.src = URL.createObjectURL(file);
+  });
+  const m = Math.min(img.width, img.height);
+  const c = document.createElement('canvas'); c.width = c.height = lado;
+  c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, lado, lado);
+  return c.toDataURL('image/jpeg', 0.72).split(',')[1];
+}
+/** Organizar → cargar varias fotos de una: el nombre del archivo es el apodo. */
+async function cargarFichas(archivos) {
+  let orden = Math.max(0, ...a.fichas.map(f => f.orden ?? 0));
+  const ordenados = [...archivos].sort((x, y) => x.name.localeCompare(y.name));
+  for (const f of ordenados) {
+    const nombre = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    try { guardar('ficha', Nuevo.ficha(nombre, await cuadrada(f), (a.fichas.length + orden) % COLORES.length, ++orden)); }
+    catch (e) { avisar(`${f.name}: ${mensajeError(e)}`); }
+  }
+  avisar(`${ordenados.length} perfiles cargados`, true);
+}
+
+// ── Documentos (cifrados)
+
+const clavesDoc = new Map(), metasDoc = new Map(), accesosEnviados = new Set();
+let llavePublicada = false;
+const miLlaveID = l => `ll-${a.viajeID}-${a.yo}-${l.dispositivo}`;
+
+async function publicarMiLlave() {
+  if (llavePublicada || !a.yo || !a.miembros[a.yo] || a.estado(a.yo) !== 'aprobado') return;
+  llavePublicada = true;
+  const l = await llaveLocal.cargar();
+  if (!a.llaves.some(x => x.id === miLlaveID(l))) guardar('llave', Nuevo.llave(l.dispositivo, l.publica));
+}
+async function claveDoc(d) {
+  if (clavesDoc.has(d.id)) return clavesDoc.get(d.id);
+  const l = await llaveLocal.cargar();
+  const ac = a.accesos[`ac-${d.id}-${miLlaveID(l)}`];
+  if (!ac) return null;
+  try { const k = await Cifra.desenvolver(bytesDe64(ac.envuelta), l.privada); clavesDoc.set(d.id, k); return k; } catch { return null; }
+}
+/** Descifra los títulos de los documentos que puedo abrir y vuelve a pintar si apareció alguno. */
+async function descifrarMetas() {
+  let nuevo = false;
+  for (const d of a.documentos) {
+    if (metasDoc.has(d.id)) continue;
+    const k = await claveDoc(d);
+    if (!k) continue;
+    try { metasDoc.set(d.id, JSON.parse(new TextDecoder().decode(await Cifra.abrir(bytesDe64(d.meta), k)))); nuevo = true; } catch {}
+  }
+  if (nuevo) render();
+}
+const llavesAutorizadas = d => { const dueno = a.duenoDe(d.persona); return a.llaves.filter(l => a.organiza(l.autor) || l.autor === dueno); };
+/** Si puedo abrir un documento y algún dispositivo autorizado todavía no tiene su copia de la clave, se la dejo. */
+async function compartirDocumentos() {
+  for (const d of a.documentos) {
+    const k = await claveDoc(d);
+    if (!k) continue;
+    for (const l of llavesAutorizadas(d)) {
+      const id = `ac-${d.id}-${l.id}`;
+      if (a.accesos[id] || accesosEnviados.has(id)) continue;
+      accesosEnviados.add(id);
+      try { guardar('acceso', Nuevo.acceso(d.id, l.id, b64De(await Cifra.envolver(k, bytesDe64(l.publica))))); } catch {}
+    }
+  }
+}
+async function subirDocumento(persona, titulo, clase, file) {
+  let datos = new Uint8Array(await file.arrayBuffer());
+  let formato = (file.name.split('.').pop() || 'pdf').toLowerCase().replace('jpeg', 'jpg');
+  if (file.type.startsWith('image/') && formato !== 'pdf') {   // las fotos se achican (así suelen entrar en el registro)
+    const b64 = await miniatura(file, 2200).catch(() => null);
+    if (b64) { datos = bytesDe64(b64); formato = 'jpg'; }
+  }
+  const clave = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  const id = nuevoID('doc');
+  const meta = b64De(await Cifra.sellar(new TextEncoder().encode(JSON.stringify({ titulo, clase, formato, tamano: datos.length })), clave));
+  const sellado = await Cifra.sellar(datos, clave);
+  clavesDoc.set(id, clave);
+  const chico = sellado.length <= 550000;
+  const d = Nuevo.documento(id, persona, meta, chico ? b64De(sellado) : undefined);
+  if (!chico && a.esDemo) docsDemo.set(id, sellado);
+  await enviar('documento', d, chico || a.esDemo ? undefined : new Blob([sellado], { type: 'application/octet-stream' }));
+  const l = await llaveLocal.cargar();
+  const para = llavesAutorizadas(d);
+  if (!para.some(x => x.id === miLlaveID(l))) para.push({ id: miLlaveID(l), publica: l.publica });
+  for (const x of para) {
+    accesosEnviados.add(`ac-${id}-${x.id}`);
+    guardar('acceso', Nuevo.acceso(id, x.id, b64De(await Cifra.envolver(clave, bytesDe64(x.publica)))));
+  }
+  descifrarMetas();
+}
+const docsDemo = new Map();
+async function abrirDocumento(id) {
+  const d = a.documentos.find(x => x.id === id), m = metasDoc.get(id);
+  const k = d && await claveDoc(d);
+  if (!k || !m) return avisar('Todavía no te compartieron este documento en este navegador');
+  avisar('Abriendo…', true);
+  try {
+    let sellado = d.contenido ? bytesDe64(d.contenido) : docsDemo.get(id);
+    if (!sellado) {
+      const url = await a.servidor.archivoURL(id);
+      sellado = new Uint8Array(await (await fetch(url)).arrayBuffer());
+    }
+    const datos = await Cifra.abrir(sellado, k);
+    const tipo = m.formato === 'pdf' ? 'application/pdf' : m.formato === 'png' ? 'image/png' : /jpe?g|heic/.test(m.formato) ? 'image/jpeg' : 'application/octet-stream';
+    const url = URL.createObjectURL(new Blob([datos], { type: tipo }));
+    const el = document.createElement('div');
+    el.className = 'visor';
+    el.innerHTML = `${tipo.startsWith('image/') ? `<img src="${url}" alt="">` : `<iframe class="visor-doc" src="${url}" title="${esc(m.titulo)}"></iframe>`}
+      <div class="arriba"><div class="crece"><b>🔒 ${esc(m.titulo)}</b><div style="font-size:12px;opacity:.8">Solo lo ven ${esc(a.nombrePersona(d.persona))} y los organizadores</div></div>
+      <a href="${url}" download="${esc(m.titulo)}.${esc(m.formato)}" title="Descargar">⬇︎</a><button data-v="cerrar" title="Cerrar">✕</button></div>`;
+    el.addEventListener('click', e => { if (e.target.closest('button')?.dataset.v === 'cerrar' || e.target === el) { el.remove(); URL.revokeObjectURL(url); } });
+    document.body.appendChild(el);
+    $('#aviso').hidden = true;
+  } catch (e) { avisar(`No se pudo abrir: ${mensajeError(e)}`); }
 }
 
 function decidir(u, aprobar) {
@@ -410,6 +634,7 @@ async function sincronizar() {
     if (a.error?.startsWith('Sin conexión con el grupo')) a.error = null;
     ingerir(nuevos);
     aprobarPendientesSolos();
+    publicarMiLlave().then(compartirDocumentos).then(descifrarMetas).catch(() => {});
   } catch (e) {
     a.error = `Sin conexión con el grupo: ${mensajeError(e)}`;
     render();
@@ -502,6 +727,23 @@ function reconstruir() {
   const ocs = ultimaPor(de('oculto').filter(o => a.organizadores.has(o.autor)), 'registro');
   a.ocultosLista = Object.values(ocs).filter(o => o.oculto);
   a.ocultos = new Set(a.ocultosLista.map(o => o.registro));
+
+  // Perfiles armados: los cargan los organizadores. Cada uno es del primero que lo eligió (y no lo liberaron).
+  a.fichas = de('ficha').filter(f => a.organizadores.has(f.autor) && !a.ocultos.has(f.id)).sort((x, y) => (x.orden ?? 0) - (y.orden ?? 0) || x.nombre.localeCompare(y.nombre));
+  const ids = new Set(a.fichas.map(f => f.id));
+  const libs = de('liberacion').filter(l => a.organizadores.has(l.autor));
+  const recs = de('reclamo').filter(r => ids.has(r.ficha) && a.miembros[r.autor] && !libs.some(l => l.ficha === r.ficha && l.usuario === r.autor && l.fecha >= r.fecha))
+    .sort((x, y) => x.fecha - y.fecha || x.autor.localeCompare(y.autor));
+  a.duenoFicha = {}; a.fichaDe = {};
+  for (const r of recs) if (!a.duenoFicha[r.ficha] && !a.fichaDe[r.autor]) { a.duenoFicha[r.ficha] = r.autor; a.fichaDe[r.autor] = r.ficha; }
+  a.miReclamoPerdido = !a.fichaDe[a.yo] && vivos.some(s => s.tipo === 'reclamo' && s.autor === a.yo);
+  // Documentos: solo los ven el dueño y los organizadores (y van cifrados igual).
+  a.llaves = de('llave').filter(l => a.miembros[l.autor]);
+  a.accesos = Object.fromEntries(de('acceso').map(x => [x.id, x]));
+  a.documentos = de('documento').filter(d => {
+    const dueno = a.duenoDe(d.persona);
+    return (a.organizadores.has(d.autor) || d.autor === dueno) && (a.organizadores.has(a.yo) || dueno === a.yo);
+  }).sort((x, y) => y.fecha - x.fecha);
 
   const ok = x => a.cuenta(x.autor) && !a.ocultos.has(x.id);
   a.mensajes = de('mensaje').filter(ok).sort((x, y) => x.fecha - y.fecha);
@@ -692,7 +934,11 @@ const SVG = {
 };
 
 function av(u, tam = 36) {
-  return `<span class="av" style="--c:${a.color(u)};width:${tam}px;height:${tam}px;font-size:${tam * 0.55}px;border-width:${tam > 30 ? 2 : 1.5}px">${esc(a.emoji(u))}</span>`;
+  const f = a.foto(u);
+  return `<span class="av${f ? ' con-foto' : ''}" style="--c:${a.color(u)};width:${tam}px;height:${tam}px;font-size:${tam * 0.55}px;border-width:${tam > 30 ? 2 : 1.5}px">${f ? `<img src="${f}" alt="">` : esc(a.emoji(u))}</span>`;
+}
+function caraFicha(f, tam = 72) {
+  return `<span class="av cara-ficha${f.foto ? ' con-foto' : ''}" style="--c:${color(f.color ?? 0)};width:${tam}px;height:${tam}px;font-size:${tam * 0.42}px">${f.foto ? `<img src="data:image/jpeg;base64,${f.foto}" alt="">` : esc(f.nombre.slice(0, 1))}</span>`;
 }
 const pila = (us, tam = 22) => `<span class="pila">${us.map(u => av(u, tam)).join('')}</span>`;
 const vacio = (ico, titulo, texto) => `<div class="vacio"><div class="ico">${ico}</div><b>${esc(titulo)}</b>${esc(texto)}</div>`;
@@ -716,13 +962,14 @@ function render() {
 
   if (!a.perfil) html = vBienvenida();
   else if (!a.viajeID) html = vInicio();
+  else if (a.debeElegirFicha) html = vQuienSos(true);
   else if (!a.viaje || !a.miembros[a.yo]) html = vConectando();
   else if (a.miEstado !== 'aprobado') html = vEspera(a.miEstado === 'rechazado');
   else {
     conPestanas = true;
     if (ui.pestana === CHAT) { html = vChat(); clase = 'chat'; }
     else if (ui.pestana === RANKING) html = ui.juego ? vJuego() : vJuegos();
-    else html = ui.seccion ? ({ mapa: vMapa, tareas: vTareas, gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, valija: vValija, grupo: vGrupo, organizar: vOrganizar })[ui.seccion]() : vMas();
+    else html = ui.seccion ? ({ mapa: vMapa, tareas: vTareas, gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, valija: vValija, grupo: vGrupo, organizar: vOrganizar, documentos: vDocumentos, perfiles: vPerfiles })[ui.seccion]() : vMas();
   }
 
   const scrollAntes = window.scrollY;
@@ -741,6 +988,11 @@ function render() {
   if (a.error && a.error !== render.ultimoError) avisar(a.error);
   render.ultimoError = a.error;
   if (mostrarRevelacion && conPestanas && !$('.revelacion')) pintarRevelacion();
+  // Los que ya estaban en el viaje: una vez, "¿sos alguno de estos?" para tomar su perfil armado.
+  if (conPestanas && !hoja && a.fichasLibres.length && !a.fichaDe[a.yo] && !leerLS(`fichaOfrecida-${a.viajeID}`)) {
+    guardarLS(`fichaOfrecida-${a.viajeID}`, true);
+    hojas.quienSos();
+  }
   animarBarras(animar);
 }
 
@@ -809,7 +1061,7 @@ function vInicio() {
   const listo = a.conectado && !a.cargando;
   const cod = codigoDe(inicioCampos.link);
   return `
-    <div class="titulo"><span style="font-size:36px">${esc(p.emoji)}</span><h1 style="font-size:24px">Hola, ${esc(p.nombre)}<div class="chico" style="font-weight:400;margin-top:2px">¿Armás un viaje o te sumás a uno?</div></h1>
+    <div class="titulo"><span style="font-size:36px">${esc(p.emoji)}</span><h1 style="font-size:24px">Hola${p.nombre ? `, ${esc(p.nombre)}` : ''}<div class="chico" style="font-weight:400;margin-top:2px">¿Armás un viaje o te sumás a uno?</div></h1>
       <button class="icono-b" data-a="cambiar-perfil" title="Cambiar perfil">👤</button></div>
     ${bannerApp()}
     ${ck}
@@ -841,6 +1093,25 @@ function vConectando() {
   }
   return `<div class="espera"><div class="cargando oscuro"></div><div class="chico">Conectando con el grupo…</div>
     ${a.error ? `<button class="boton gris chico" data-a="salir-ya">Salir y usar otro link</button>` : ''}</div>`;
+}
+
+let noEstoy = { abierto: false, nombre: '' };
+function vQuienSos(obligatorio) {
+  setTimeout(() => { vQuienSos.ya = obligatorio; }, 0);   // las caras se animan al aparecer, no en cada sincronización
+  const pide = !a.miembros[a.yo];
+  return `<div class="quien-sos">
+    <h1 class="marca" style="font-size:34px;margin:10px 0 4px">¿Quién sos?</h1>
+    <p class="chico centro">${a.miReclamoPerdido ? 'El perfil que habías elegido quedó libre (lo liberó un organizador o alguien lo eligió antes). Elegí el tuyo.' : 'Tocá tu cara. Queda atado a tu Apple ID y nadie más lo puede elegir.'}</p>
+    ${a.viaje ? `<p class="centro" style="margin:2px 0 14px;color:var(--acento);font-weight:700;font-size:13px">${esc(a.viaje.nombre)}</p>` : ''}
+    <div class="caras${vQuienSos.ya === obligatorio ? '' : ' animar'}">${a.fichasLibres.map((f, i) => `<button data-a="elegir-ficha" data-id="${esc(f.id)}" style="animation-delay:${i * 30}ms">${caraFicha(f, 84)}<b>${esc(f.nombre)}</b></button>`).join('')}</div>
+    <div class="tarjeta" style="margin-top:18px">
+      <button class="enlace" data-a="no-estoy" style="font-weight:600">No estoy en la lista</button>
+      ${noEstoy.abierto ? `${pide ? `<input class="campo" style="margin-top:8px" data-campo-n placeholder="Tu nombre o apodo" value="${esc(noEstoy.nombre)}" autocapitalize="words" maxlength="30">` : ''}
+        <div class="chico" style="margin:6px 0 8px">${obligatorio ? 'Pedís entrar como siempre y un organizador te aprueba.' : 'Seguís con tu nombre y tu emoji.'}</div>
+        <button class="boton chico" data-a="no-estoy-ok">${obligatorio ? 'Pedir para entrar' : 'Listo'}</button>` : ''}
+    </div>
+    ${obligatorio ? '<p class="centro"><button class="enlace" style="color:var(--rojo);font-size:13px;margin-top:14px" data-a="salir-ya">Salir y usar otro link</button></p>' : ''}
+  </div>`;
 }
 
 function vEspera(rechazado) {
@@ -884,7 +1155,7 @@ const mapa = {
     for (const u of Object.values(a.ubicaciones)) {
       vistos.add(u.autor);
       const viejo = ahora() - u.fecha > 900000, elegido = ui.seleccion === u.autor;
-      const html = `<div class="pin ${viejo ? 'viejo' : ''} ${elegido ? 'elegido' : ''}" style="--c:${a.color(u.autor)}"><div class="onda"></div><div class="cara">${esc(a.emoji(u.autor))}</div><div class="cola"></div></div>`;
+      const html = `<div class="pin ${viejo ? 'viejo' : ''} ${elegido ? 'elegido' : ''}" style="--c:${a.color(u.autor)}"><div class="onda"></div><div class="cara">${a.foto(u.autor) ? `<img src="${a.foto(u.autor)}" alt="">` : esc(a.emoji(u.autor))}</div><div class="cola"></div></div>`;
       let p = this.pines.get(u.autor);
       if (!p) {
         p = L.marker([u.latitud, u.longitud], { icon: L.divIcon({ html, className: '', iconSize: [54, 62], iconAnchor: [27, 60] }), zIndexOffset: elegido ? 1000 : 0 })
@@ -1130,6 +1401,7 @@ function vMas() {
       ${mos('votaciones', '📊', 'Votaciones', 'var(--violeta)', `${a.encuestas.filter(e => !e.cerrada).length} abiertas`)}
       ${mos('fotos', '🖼️', 'Fotos', 'var(--rosa)', `${a.fotos.length} fotos`)}
       ${mos('valija', '🧳', 'Valija', '#8B5E3C', `${prendasDe(a.yo)} de ${TOTAL_PRENDAS} prendas${a.decomisos.length ? ` · ${a.decomisos.length} decomisos` : ''}`)}
+      ${(n => mos('documentos', '🔒', 'Documentos', '#1A9E8F', !n ? 'Seguro, pasajes… (privado)' : a.soyAdmin ? `${n} cargados` : n === 1 ? '1 documento tuyo' : `${n} documentos tuyos`))(a.documentos.length)}
       ${mos('grupo', '👥', 'Grupo', 'var(--acento)', a.soyAdmin && pend ? `${pend} esperando ✋` : `${a.aprobados.length} personas`)}
       ${a.soyAdmin ? mos('organizar', '⭐️', 'Organizar', '#E8920C', a.viaje.entradaCerrada ? 'Entrada pausada' : a.ocultosLista.length ? `${a.ocultosLista.length} ocultas` : 'Entrada, aviso, organizadores') : ''}
     </div>`;
@@ -1421,6 +1693,9 @@ function vGrupo() {
     <div class="seccion-t">Yo</div>
     <div class="lista">
       <button class="fila" style="width:100%;text-align:left" data-a="editar-perfil">${av(a.yo, 34)}<span class="crece" style="color:var(--acento)">Cambiar nombre, emoji o color</span></button>
+      <label class="fila" style="cursor:pointer;color:var(--acento)">📷 ${a.foto(a.yo) ? 'Cambiar mi foto' : 'Poner una foto'}<input type="file" accept="image/*" hidden data-mi-foto></label>
+      ${a.miembros[a.yo]?.foto ? '<button class="fila" style="width:100%;text-align:left;color:var(--rojo)" data-a="quitar-foto">Quitar mi foto</button>' : ''}
+      ${!a.fichaDe[a.yo] && a.fichasLibres.length ? '<button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="quien-sos">🪪 Elegir mi perfil del viaje</button>' : ''}
       <label class="fila interruptor" style="padding:11px 14px"><span>Compartir mi ubicación<div class="mini">Desde la web se comparte solo con la página abierta${ubicacion.error === 'denegada' ? '. ⚠️ El navegador no tiene permiso de ubicación' : ''}.</div></span><input type="checkbox" data-a="comparto" ${ubicacion.comparto ? 'checked' : ''}></label>
       ${notis === 'default' ? '<button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="notis">🔔 Avisarme de mensajes nuevos</button>' : ''}
     </div>
@@ -1476,6 +1751,10 @@ function vOrganizar() {
     <div class="lista">${orgs.map(u => filaPersona(a.miembros[u])).join('')}</div>
     <p class="pie">Cualquier organizador puede aprobar gente, nombrar o quitar organizadores, editar el viaje y ocultar cosas. Al que creó el viaje no se lo puede quitar.</p>
 
+    <div class="seccion-t">¿Quién sos? · perfiles del viaje</div>
+    <div class="lista"><button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="seccion" data-s="perfiles">${a.fichas.length ? `${a.fichas.length} perfiles · ${a.fichas.filter(f => a.duenoFicha[f.id]).length} ya eligieron el suyo ›` : 'Cargar las caras y los apodos ›'}</button></div>
+    <p class="pie">El que entra con el link elige su cara y entra directo, sin aprobación, con ese nombre y esa foto.</p>
+
     <div class="seccion-t">El viaje</div>
     <div class="lista"><button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="editar-viaje">Editar nombre, destino, moneda, sorpresa y fotos en Drive ›</button></div>
 
@@ -1487,6 +1766,48 @@ function vOrganizar() {
     }).join('')}</div>` : '<p class="pie">Nada oculto. Para ocultar algo de otro (un mensaje, una foto, un gasto, una tarea…) tocá “Ocultar” al lado.</p>'}
 
     ${a.rechazados.length ? `<div class="seccion-t">Rechazados</div><div class="lista">${a.rechazados.map(m => `<div class="fila"><span class="crece">${esc(m.emoji)} ${esc(m.nombre)}</span><button class="enlace" data-a="decidir" data-u="${esc(m.autor)}" data-v="1">Aprobar</button></div>`).join('')}</div>` : ''}`;
+}
+
+// ── Perfiles del viaje (organizadores)
+
+function vPerfiles() {
+  const elegidos = a.fichas.filter(f => a.duenoFicha[f.id]).length;
+  return `${titulo('Perfiles del viaje', `<label class="boton suave chico" style="cursor:pointer">＋ Fotos<input type="file" accept="image/*" multiple hidden data-cargar-fichas></label>`, volverA('seccion-organizar', 'Organizar'))}
+    <p class="pie" style="margin-top:-8px">Subí una o varias fotos: el nombre del archivo es el apodo (ej: <b>Joti.jpg</b>). Se recortan cuadradas, al centro.</p>
+    <div class="seccion-t">Perfiles · ${a.fichas.length} · ${elegidos} elegidos <button class="enlace der" style="font-size:13px" data-a="nueva-ficha">＋ Uno</button></div>
+    ${a.fichas.length ? `<div class="lista">${a.fichas.map(f => {
+      const u = a.duenoFicha[f.id];
+      return `<div class="fila" data-registro="${esc(f.id)}">${caraFicha(f, 44)}<span class="crece"><div class="t">${esc(f.nombre)}</div>
+        <div class="s" style="color:${u ? 'var(--verde)' : 'var(--tinta-2)'}">${u ? (u === a.yo ? 'Lo elegiste vos' : 'Ya lo eligió') : 'Libre'}</div></span>
+        ${u ? `<button class="boton gris chico" data-a="liberar" data-id="${esc(f.id)}">Liberar</button>` : ''}
+        ${f.autor === a.yo ? `<button class="icono-b" data-a="editar-ficha" data-id="${esc(f.id)}" aria-label="Editar">✎</button>` : ''}
+        ${f.autor === a.yo ? `<button class="borrar" data-a="borrar-ficha" data-id="${esc(f.id)}">✕</button>` : botonOcultar(f)}</div>`;
+    }).join('')}</div>` : vacio('🪪', 'Sin perfiles todavía', 'Cargá la cara y el apodo de cada uno.')}
+    <p class="pie">Si alguien eligió mal, tocá Liberar: vuelve a la lista y esa persona tiene que elegir de nuevo.</p>`;
+}
+
+// ── Documentos
+
+const CLASES_DOC = [['seguro', 'Seguro de viaje', '🩺'], ['pasaje', 'Pasaje', '✈️'], ['pasaporte', 'Pasaporte / DNI', '🪪'], ['reserva', 'Reserva', '🏨'], ['otro', 'Otro', '📄']];
+function vDocumentos() {
+  const sinFicha = a.aprobados.map(m => m.autor).filter(u => !a.fichaDe[u]);
+  const personas = a.soyAdmin ? [...a.fichas.map(f => f.id), ...sinFicha] : [a.fichaDe[a.yo] || a.yo];
+  const tam = n => n > 1e6 ? `${(n / 1e6).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
+  return `${titulo('Documentos', '', volverA('volver-mas', 'Más'))}
+    <div class="tarjeta renglon" style="gap:10px"><span style="font-size:20px">🔒</span><span class="chico">${a.soyAdmin ? 'Ves los documentos de todos porque organizás. Cada uno ve solo los suyos.' : 'Solo los ves vos y los organizadores. Van cifrados: ni con el código del viaje se pueden leer.'}</span></div>
+    ${personas.map(p => {
+      const docs = a.documentos.filter(d => d.persona === p), f = a.fichas.find(x => x.id === p);
+      const mio = p === a.yo || p === a.fichaDe[a.yo];
+      return `<div class="seccion-t renglon" style="gap:8px">${f ? caraFicha(f, 22) : av(p, 22)}${mio ? 'Mis documentos' : esc(a.nombrePersona(p))}${p.startsWith('pf-') && !a.duenoFicha[p] ? '<span class="mini">· todavía no entró</span>' : ''}</div>
+        <div class="lista">${docs.map(d => {
+          const m = metasDoc.get(d.id);
+          if (!m) return `<div class="fila"><span class="chico">🔒 Documento cifrado · esperando que te lo compartan en este navegador</span></div>`;
+          const c = CLASES_DOC.find(x => x[0] === m.clase) || CLASES_DOC[4];
+          return `<div class="fila" data-registro="${esc(d.id)}"><span style="font-size:22px">${c[2]}</span><button class="crece" style="text-align:left" data-a="abrir-doc" data-id="${esc(d.id)}"><div class="t">${esc(m.titulo)}</div><div class="s">${c[1]} · ${esc(m.formato.toUpperCase())} · ${tam(m.tamano || 0)} · ${haceCuanto(d.fecha)}</div></button>
+            ${d.autor === a.yo ? `<button class="borrar" data-a="borrar-doc" data-id="${esc(d.id)}">✕</button>` : ''}</div>`;
+        }).join('')}
+        <button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="nuevo-doc" data-p="${esc(p)}">＋ Cargar documento</button></div>`;
+    }).join('')}`;
 }
 
 /** El aviso fijo arriba del chat y del mapa. */
@@ -1895,6 +2216,45 @@ const hojas = {
     });
   },
 
+  quienSos() {
+    noEstoy = { abierto: false, nombre: '' };
+    abrirHoja({ titulo: 'Tu perfil del viaje', estado: {}, cuerpo: () => vQuienSos(false),
+      accion: () => {} });
+  },
+
+  ficha(f) {
+    const e = { nombre: f?.nombre || '', foto: f?.foto };
+    abrirHoja({
+      titulo: f ? 'Editar perfil' : 'Nuevo perfil', estado: e, okTexto: 'Guardar', puedeOk: () => e.nombre.trim().length > 0,
+      cuerpo: () => `<div class="centro" style="margin:8px 0 14px"><label style="cursor:pointer;display:inline-block">${e.foto ? `<img src="data:image/jpeg;base64,${e.foto}" style="width:110px;height:110px;border-radius:50%;object-fit:cover" alt="">` : '<span class="av" style="width:110px;height:110px;font-size:40px;--c:var(--tinta-2)">📷</span>'}
+          <input type="file" accept="image/*" hidden data-foto-ficha></label><div class="mini">Tocá para elegir la foto</div></div>
+        <label class="et">Apodo</label><input class="campo" data-hc="nombre" value="${esc(e.nombre)}" maxlength="30" autocapitalize="words">`,
+      ok: () => {
+        const n = e.nombre.trim();
+        if (f) guardar('ficha', { ...f, nombre: n, foto: e.foto, fecha: ahora() });
+        else guardar('ficha', Nuevo.ficha(n, e.foto, a.fichas.length % COLORES.length, Math.max(0, ...a.fichas.map(x => x.orden ?? 0)) + 1));
+      },
+    });
+  },
+
+  documento(persona) {
+    const e = { clase: 'seguro', titulo: '', archivo: null };
+    abrirHoja({
+      titulo: 'Cargar documento', estado: e, okTexto: 'Subir', puedeOk: () => !!e.archivo && e.archivo.size < 9e6,
+      cuerpo: () => `<label class="et">Qué es</label><div class="segmentos" style="flex-wrap:wrap">${CLASES_DOC.map(c => `<button data-ha="clase" data-v="${c[0]}" class="${e.clase === c[0] ? 'si' : ''}">${c[2]} ${c[1]}</button>`).join('')}</div>
+        <label class="et">Título</label><input class="campo" data-hc="titulo" value="${esc(e.titulo)}" placeholder="Ej: Seguro Assist Card" maxlength="60">
+        <label class="et">Archivo</label><label class="boton gris ancho" style="cursor:pointer">${e.archivo ? `✅ ${esc(e.archivo.name)}` : '📎 Elegir PDF o foto'}<input type="file" accept="application/pdf,image/*" hidden data-archivo-doc></label>
+        <p class="pie">Para ${esc(a.nombrePersona(persona))}. Lo ven solo esa persona y los organizadores. Va cifrado.</p>`,
+      accion: (k, b) => { if (k === 'clase') { e.clase = b.dataset.v; pintarHoja(); } },
+      ok: async () => {
+        const c = CLASES_DOC.find(x => x[0] === e.clase);
+        avisar('Subiendo y cifrando…', true);
+        try { await subirDocumento(persona, e.titulo.trim() || c[1], e.clase, e.archivo); avisar('Documento cargado 🔒', true); }
+        catch (err) { avisar(`No se pudo subir: ${mensajeError(err)}`); return false; }
+      },
+    });
+  },
+
   nombrar() {
     const candidatos = a.aprobados.filter(m => !a.organiza(m.autor));
     abrirHoja({
@@ -2016,6 +2376,27 @@ const acciones = {
     catch { prompt('Copiá el link:', linkInvitacion()); }
   },
   persona: b => hojas.persona(b.dataset.u),
+  'elegir-ficha': b => {
+    const f = a.fichas.find(x => x.id === b.dataset.id);
+    if (!f || !confirm(`¿Sos ${f.nombre}?\n\nQueda atado a tu Apple ID y sale de la lista. Si te equivocás, un organizador lo puede liberar.`)) return;
+    elegirFicha(f); if (hoja) cerrarHoja(); render();
+  },
+  'no-estoy': () => { noEstoy.abierto = true; hoja ? pintarHoja() : render(); },
+  'no-estoy-ok': async () => {
+    const n = noEstoy.nombre.trim() || a.perfil?.nombre;
+    if (!a.miembros[a.yo] && !n) return avisar('Escribí tu nombre');
+    await noEstoyEnLaLista(n); if (hoja) cerrarHoja();
+  },
+  'quien-sos': () => hojas.quienSos(),
+  'quitar-foto': () => { const m = a.miembros[a.yo]; if (m && confirm('¿Quitar tu foto?')) guardar('miembro', { ...m, foto: undefined }); },
+  'seccion-organizar': () => { ui.seccion = 'organizar'; ui.cambioDeVista = true; render(); },
+  'nueva-ficha': () => hojas.ficha(),
+  'editar-ficha': b => hojas.ficha(a.fichas.find(f => f.id === b.dataset.id)),
+  'borrar-ficha': b => { const f = a.fichas.find(x => x.id === b.dataset.id); if (f && confirm(`¿Borrar el perfil de ${f.nombre}?`)) borrar('ficha', f); },
+  liberar: b => { const f = a.fichas.find(x => x.id === b.dataset.id); if (f && confirm(`¿Liberar el perfil de ${f.nombre}?\nLa persona que lo eligió va a tener que elegir de nuevo (o pedir entrar).`)) liberarFicha(f); },
+  'nuevo-doc': b => hojas.documento(b.dataset.p),
+  'abrir-doc': b => abrirDocumento(b.dataset.id),
+  'borrar-doc': b => { const d = a.documentos.find(x => x.id === b.dataset.id); if (d && confirm('¿Borrar el documento?')) borrar('documento', d); },
   nombrar: () => hojas.nombrar(),
   'dejar-organizar': () => { if (confirm('¿Dejar de organizar? Vas a seguir en el viaje.')) hacerOrganizadorPropio(); },
   aviso: () => hojas.aviso(),
@@ -2079,7 +2460,7 @@ async function mensajeConUbicacion(clase, texto) {
 
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-a]');
-  if (!b || b.closest('#hoja')) return;
+  if (!b || (b.closest('#hoja') && !['elegir-ficha', 'no-estoy', 'no-estoy-ok'].includes(b.dataset.a))) return;
   if (b.tagName === 'INPUT') return;   // los interruptores van por 'change'
   const f = acciones[b.dataset.a];
   if (f) { e.preventDefault(); f(b, e); }
@@ -2089,9 +2470,22 @@ document.addEventListener('change', e => {
   if (e.target.matches('[data-a=entrada]')) guardarViaje({ ...a.viaje, entradaCerrada: e.target.checked ? undefined : true });
   if (e.target.matches('[data-a=auto-aprobar]')) guardarViaje({ ...a.viaje, autoAprobar: e.target.checked || undefined });
   if (e.target.matches('[data-subir-fotos]')) { subirFotos([...e.target.files]); e.target.value = ''; }
+  if (e.target.matches('[data-cargar-fichas]')) { cargarFichas([...e.target.files]); e.target.value = ''; }
+  if (e.target.matches('[data-mi-foto]') && e.target.files[0]) {
+    const m = a.miembros[a.yo];
+    cuadrada(e.target.files[0]).then(foto => { if (m) guardar('miembro', { ...m, foto }); }).catch(err => avisar(mensajeError(err)));
+    e.target.value = '';
+  }
+  if (e.target.matches('[data-foto-ficha]') && e.target.files[0] && hoja) { cuadrada(e.target.files[0]).then(f => { hoja.estado.foto = f; pintarHoja(); refrescarOk(); }); }
+  if (e.target.matches('[data-archivo-doc]') && e.target.files[0] && hoja) {
+    hoja.estado.archivo = e.target.files[0];
+    if (!hoja.estado.titulo) hoja.estado.titulo = e.target.files[0].name.replace(/\.[^.]+$/, '');
+    pintarHoja(); refrescarOk();
+  }
 });
 document.addEventListener('input', e => {
   const t = e.target;
+  if (t.dataset.campoN != null) noEstoy.nombre = t.value;
   if (t.dataset.campoB) { borrador[t.dataset.campoB] = t.value; const b = $('[data-a=empezar]'); if (b) b.disabled = !borrador.nombre.trim(); }
   if (t.dataset.campoI) {
     inicioCampos[t.dataset.campoI] = t.value;
@@ -2189,6 +2583,7 @@ function entrar(id) {
     inicioCampos.link = ui.codigoLink;
     history.replaceState(null, '', location.pathname);
   }
+  if (ui.codigoLink && !a.perfil) { a.perfil = { nombre: '', emoji: '🙂', color: Math.random() * COLORES.length | 0 }; guardarLocal(); }
   if (a.esDemo) { activarDemo(); arrancar(); }
   render();
   conectarCloudKit();

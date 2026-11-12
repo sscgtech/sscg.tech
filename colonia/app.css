@@ -386,3 +386,18 @@ a.boton { text-decoration: none; }
 .barra-valija span.completa { background: var(--verde); }
 .foto-decomiso { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex: none; background: var(--tarjeta-2); display: flex; align-items: center; justify-content: center; font-size: 24px; }
 .foto-decomiso.grande { width: 100%; height: auto; max-height: 260px; margin-top: 10px; }
+
+/* ── Perfiles armados ("¿Quién sos?") y documentos */
+.av.con-foto { overflow: hidden; background: var(--tarjeta); }
+.av img, .pin .cara img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.cara-ficha { background: var(--c); color: #fff; font-weight: 800; border: none; }
+.quien-sos { max-width: 520px; margin: 0 auto; padding-top: 8px; }
+.quien-sos > p.chico { font-size: 15px; }
+.caras { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 18px 10px; margin-top: 8px; }
+.caras button { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.caras.animar button { animation: aparecer-cara .45s cubic-bezier(.3, 1.5, .5, 1) both; }
+.caras button .av { box-shadow: 0 0 0 3px var(--fondo), 0 0 0 5px var(--c), 0 4px 10px rgba(0, 0, 0, .18); transition: transform .15s; }
+.caras button:active .av { transform: scale(.94); }
+.caras b { font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes aparecer-cara { from { opacity: 0; transform: scale(.6); } }
+.visor .visor-doc { width: min(100%, 900px); height: 80vh; border: 0; background: #fff; border-radius: 8px; }

@@ -35,7 +35,9 @@ class Demo {
     const v = Demo.viajeID, yo = Demo.yo, c = Demo.centro, ahora = Date.now();
     const todos = [yo, ...this.amigos.map(a => a[0])];
     const sorpresa = new URLSearchParams(location.search).has('sorpresa');
-    const admin = sorpresa ? 'demo-juli' : yo;
+    // ?nuevo: entro por primera vez con el link (para ver "¿Quién sos?").
+    const nuevo = new URLSearchParams(location.search).has('nuevo');
+    const admin = sorpresa || nuevo ? 'demo-juli' : yo;
     if (sorpresa) this.poner('decision', { id: `d-${v}-${yo}`, usuario: yo, aprobado: true, fecha: ahora }, admin, 2800);
     this.poner('viaje', {
       id: v, nombre: 'Colonia 2027', destino: 'Colonia del Sacramento', moneda: '$',
@@ -43,7 +45,13 @@ class Demo {
       aviso: 'Mañana salimos 8 am de la casa 🚐', avisoFecha: ahora - 3600000, avisoAutor: 'demo-juli',
       destinoOculto: sorpresa || undefined, aeropuertoNombre: 'Aeropuerto de Ezeiza', aeropuertoLat: -34.815, aeropuertoLon: -58.5348,
     }, admin, 3000);
-    this.poner('miembro', { id: `m-${v}-${yo}`, nombre: 'Santi', emoji: '🧉', color: 0, codigo: v, pedido: ahora - 3000 * 60000, comparteUbicacion: true }, yo, 3000);
+    if (!nuevo) this.poner('miembro', { id: `m-${v}-${yo}`, nombre: 'Santi', emoji: '🧉', color: 0, codigo: v, pedido: ahora - 3000 * 60000, comparteUbicacion: true }, yo, 3000);
+    // Perfiles armados ("¿Quién sos?"): Juli, Pato y Caro ya eligieron el suyo; el resto está libre.
+    ['Juli', 'Pato', 'Caro', 'Santi', 'Rama', 'Sofi', 'Mora', 'Beto', 'Tincho'].forEach((n, i) => {
+      const id = `pf-${v}-${n.toLowerCase()}`;
+      this.poner('ficha', { id, nombre: n, color: i % 10, orden: i, fecha: ahora - 2950 * 60000 }, admin, 2950);
+      if (i < 3) this.poner('reclamo', { id: `rc-${v}-demo-${n.toLowerCase()}`, ficha: id, fecha: ahora - 2900 * 60000 }, `demo-${n.toLowerCase()}`, 2900);
+    });
     for (const [id, nombre, emoji, color] of this.amigos) {
       this.poner('miembro', { id: `m-${v}-${id}`, nombre, emoji, color, codigo: v, pedido: ahora - 2900 * 60000, comparteUbicacion: true }, id, 2900);
       this.poner('decision', { id: `d-${v}-${id}`, usuario: id, aprobado: true, admin: id === 'demo-juli' && !sorpresa, fecha: ahora - 2800 * 60000 }, admin, 2800);
