@@ -1422,7 +1422,7 @@ function vMas() {
       ${mos('agenda', '📅', 'Agenda', 'var(--azul)', prox ? `${prox.titulo} · ${relativo(prox.inicio)}` : 'Nada por ahora')}
       ${mos('votaciones', '📊', 'Votaciones', 'var(--violeta)', `${a.encuestas.filter(e => !e.cerrada).length} abiertas`)}
       ${mos('fotos', '🖼️', 'Fotos', 'var(--rosa)', `${a.fotos.length} fotos`)}
-      ${mos('valija', '🧳', 'Valija', '#8B5E3C', `${prendasDe(a.yo)} de ${TOTAL_PRENDAS} prendas${a.decomisos.length ? ` · ${a.decomisos.length} decomisos` : ''}`)}
+      ${mos('valija', '🧳', 'Valija', '#8B5E3C', `${prendasDe(a.yo)} de ${TOTAL_PRENDAS} prendas${a.decomisos.length ? ` · ${a.decomisos.length} ${a.decomisos.length === 1 ? 'decomiso' : 'decomisos'}` : ''}`)}
       ${(n => mos('documentos', '🔒', 'Documentos', '#1A9E8F', !n ? 'Seguro, pasajes… (privado)' : a.soyAdmin ? `${n} cargados` : n === 1 ? '1 documento tuyo' : `${n} documentos tuyos`))(a.documentos.length)}
       ${mos('grupo', '👥', 'Grupo', 'var(--acento)', a.soyAdmin && pend ? `${pend} esperando ✋` : `${a.aprobados.length} personas`)}
       ${a.soyAdmin ? mos('organizar', '⭐️', 'Organizar', '#E8920C', a.viaje.entradaCerrada ? 'Entrada pausada' : a.ocultosLista.length ? `${a.ocultosLista.length} ocultas` : 'Entrada, aviso, organizadores') : ''}
@@ -1823,7 +1823,8 @@ function vPerfiles() {
 const CLASES_DOC = [['seguro', 'Seguro de viaje', '🩺'], ['pasaje', 'Pasaje', '✈️'], ['pasaporte', 'Pasaporte / DNI', '🪪'], ['reserva', 'Reserva', '🏨'], ['otro', 'Otro', '📄']];
 function vDocumentos() {
   const sinFicha = a.aprobados.map(m => m.autor).filter(u => !a.fichaDe[u]);
-  const personas = a.soyAdmin ? [...a.fichas.map(f => f.id), ...sinFicha] : [a.fichaDe[a.yo] || a.yo];
+  const mio = a.fichaDe[a.yo] || a.yo;
+  const personas = a.soyAdmin ? [mio, ...[...a.fichas.map(f => f.id), ...sinFicha].filter(p => p !== mio)] : [mio];   // los míos primero
   const tam = n => n > 1e6 ? `${(n / 1e6).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
   return `${titulo('Documentos', '', volverA('volver-mas', 'Más'))}
     <div class="tarjeta renglon" style="gap:10px"><span style="font-size:20px">🔒</span><span class="chico">${a.soyAdmin ? 'Ves los documentos de todos porque organizás. Cada uno ve solo los suyos.' : 'Solo los ves vos y los organizadores. Van cifrados: ni con el código del viaje se pueden leer.'}</span></div>
