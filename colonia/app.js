@@ -593,7 +593,7 @@ async function rotarDocumento(d) {
     ingerir([t]);
     try { await a.servidor.guardar(t, a.viajeID, null, null); } catch {}
   }
-  if (a.servidor.db) { try { await a.servidor.db.deleteRecords([d.id]); } catch {} }
+  if (!d.contenido && a.servidor.db) { try { await a.servidor.db.deleteRecords([d.id]); } catch {} }   // el archivo grande se va borrando el registro
   clavesDoc.delete(d.id); metasDoc.delete(d.id);
 }
 const docsDemo = new Map();
