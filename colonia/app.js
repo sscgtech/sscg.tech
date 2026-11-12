@@ -249,7 +249,7 @@ class NubeCloudKit {
     };
     if (resumen) fields.resumen = { value: resumen.slice(0, 180) };
     if (archivo) fields.archivo = { value: archivo };
-    if (s.borrado) { fields.archivo = { value: null }; fields.resumen = { value: null }; }   // borrado de verdad
+    if (s.borrado) fields.resumen = { value: null };   // borrado: no queda el resumen (el archivo se va con eliminar)
     // Igual que la app (.allKeys): pisa lo que haya. Si el registro ya existe hace falta su etiqueta de cambio.
     for (let intento = 0; intento < 3; intento++) {
       const rec = { recordType: 'Dato', recordName: s.id, fields };
@@ -366,6 +366,9 @@ async function borrarMisDatos() {
     (TIPOS_PERSONALES.has(s.tipo) || (s.tipo === 'documento' && misDocs.has(s.id)) || (s.tipo === 'acceso' && [...misDocs].some(d => s.id.startsWith(`ac-${d}-`)))));
   avisar('Borrando tus datos…', true);
   for (const s of mios) { try { await a.servidor.guardar({ ...s, datos: {}, borrado: true }, a.viajeID, null, null); } catch {} }
+  // Lo que tiene archivo (fotos y documentos grandes) además se borra del servidor, que es como se va el archivo.
+  const conArchivo = mios.filter(s => s.tipo === 'foto' || s.tipo === 'documento').map(s => s.id);
+  if (conArchivo.length && a.servidor.db) { try { await a.servidor.db.deleteRecords(conArchivo); } catch {} }
   try { localStorage.removeItem(`colonia-llave-${a.yo}`); } catch {}
   salirDelViaje();
   avisar('Listo: borramos tus datos de ese viaje.', true);
