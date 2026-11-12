@@ -1,6 +1,6 @@
 // Guarda la página para que abra rápido y sin señal. Primero intenta la red (así siempre está la última versión)
 // y si no hay, usa lo guardado. Los datos del viaje (CloudKit) no pasan por acá.
-const CACHE = 'colonia-v8';
+const CACHE = 'colonia-v9';
 const ARCHIVOS = ['./', 'index.html', 'app.css', 'app.js', 'demo.js', 'flor.png', 'icono-192.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting())); });
