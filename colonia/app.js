@@ -69,7 +69,7 @@ const FECHAS = {
   viaje: ['inicio', 'fin', 'revelarA', 'avisoFecha'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
   juego: ['fecha'], puntaje: ['fecha'], equipos: ['fecha'], tarea: ['dia'], marca: ['fecha'], gasto: ['fecha'],
   evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'], valija: ['fecha'], decomiso: ['fecha'],
-  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'], mvp: ['fecha'],
+  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], confirmacion: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'], mvp: ['fecha'],
 };
 function codificar(tipo, obj) {
   const o = {};
@@ -118,8 +118,9 @@ const Nuevo = {
   decomiso: (persona, item, multa, nota, miniatura) => ({ id: nuevoID('dec'), autor: '', persona, item, multa, nota, miniatura, fecha: ahora() }),
   // Perfiles armados ("¿Quién sos?") y documentos cifrados (ver Modelo.swift)
   ficha: (nombre, foto, color, orden) => ({ id: `pf-${a.viajeID}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`, autor: '', nombre, foto, color, orden, fecha: ahora() }),
-  reclamo: ficha => ({ id: `rc-${a.viajeID}-${a.yo}`, autor: '', ficha, fecha: ahora() }),
+  reclamo: (ficha, quien) => ({ id: `rc-${a.viajeID}-${a.yo}`, autor: '', ficha, quien, fecha: ahora() }),
   liberacion: (ficha, usuario) => ({ id: nuevoID('lb'), autor: '', ficha, usuario, fecha: ahora() }),
+  confirmacion: (ficha, usuario) => ({ id: nuevoID('cf'), autor: '', ficha, usuario, fecha: ahora() }),
   llave: (dispositivo, publica) => ({ id: `ll-${a.viajeID}-${a.yo}-${dispositivo}`, autor: '', publica, dispositivo: 'Web', fecha: ahora() }),
   documento: (id, persona, meta, contenido) => ({ id, autor: '', persona, meta, contenido, fecha: ahora() }),
   acceso: (documento, llave, envuelta) => ({ id: `ac-${documento}-${llave}`, autor: '', documento, llave, envuelta }),
@@ -294,7 +295,7 @@ const a = {
   viaje: null, miembros: {}, decisiones: {}, mensajes: [], ubicaciones: {}, juegos: [], puntajes: [], tareas: [], marcas: [],
   gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [], valijas: {}, decomisos: [],
   organizadores: new Set(), ocultos: new Set(), ocultosLista: [], reportes: [], bloqueados: new Set(), votosMVP: {},
-  fichas: [], duenoFicha: {}, fichaDe: {}, miReclamoPerdido: false, documentos: [], llaves: [], accesos: {},
+  fichas: [], duenoFicha: {}, fichaDe: {}, confirmada: {}, miReclamoPerdido: false, documentos: [], llaves: [], accesos: {},
   get fichasLibres() { return this.fichas.filter(f => !this.duenoFicha[f.id]); },
   /** Hay que mostrar "¿Quién sos?" sí o sí: entró con el link y no eligió (o perdió el que eligió). */
   get debeElegirFicha() {
@@ -306,7 +307,9 @@ const a = {
     const f = this.miembros[u]?.foto || this.fichas.find(x => x.id === this.fichaDe[u])?.foto;
     return f ? `data:image/jpeg;base64,${f}` : null;
   },
-  duenoDe(persona) { return persona?.startsWith('pf-') ? this.duenoFicha[persona] : persona; },
+  /** De quién son los documentos: en un perfil armado, solo del que eligió ese perfil Y un organizador lo confirmó. */
+  duenoDe(persona) { return persona?.startsWith('pf-') ? this.confirmada[persona] : persona; },
+  get porConfirmar() { return this.fichas.filter(f => this.duenoFicha[f.id] && !this.confirmada[f.id]); },
   nombrePersona(p) { return this.fichas.find(f => f.id === p)?.nombre ?? this.nombre(p); },
 
   /** El que creó el viaje: siempre organiza y no se lo puede sacar. */
@@ -437,11 +440,11 @@ function actualizarPerfil(p) {
 // ── Perfiles armados ("¿Quién sos?")
 
 /** "Soy yo": queda atado a mi Apple ID, sale de la lista y entro directo con ese nombre y esa foto. */
-function elegirFicha(f) {
+function elegirFicha(f, quien) {
   if (a.duenoFicha[f.id]) return avisar('Ese perfil ya lo eligió otro');
   const antes = a.miembros[a.yo] ? a.estado(a.yo) : 'pendiente';
   a.perfil = { nombre: f.nombre, emoji: a.perfil?.emoji || '🙂', color: f.color ?? 0 }; guardarLocal();
-  guardar('reclamo', Nuevo.reclamo(f.id));
+  guardar('reclamo', Nuevo.reclamo(f.id, quien || undefined));
   const m = a.miembros[a.yo] || Nuevo.miembro(a.viajeID, a.perfil);
   guardar('miembro', { ...m, nombre: f.nombre, color: f.color ?? 0 });
   if (antes !== 'aprobado') guardar('mensaje', Nuevo.mensaje(`👋 ${f.nombre} se sumó al viaje`, 'sistema'));
@@ -453,6 +456,10 @@ async function noEstoyEnLaLista(nombre) {
   if (r && !r.borrado) borrar('reclamo', { ...r.datos, autor: a.yo });
   if (!a.miembros[a.yo]) await enviar('miembro', Nuevo.miembro(a.viajeID, { ...a.perfil, nombre: a.perfil.nombre || 'Sin nombre' }));
   a.miReclamoPerdido = false; render();
+}
+function confirmarFicha(f) {
+  const u = a.duenoFicha[f.id];
+  if (a.soyAdmin && u) guardar('confirmacion', Nuevo.confirmacion(f.id, u));
 }
 function liberarFicha(f) {
   const u = a.duenoFicha[f.id];
@@ -531,13 +538,18 @@ async function subirDocumento(persona, titulo, clase, file) {
     const b64 = await miniatura(file, 2200).catch(() => null);
     if (b64) { datos = bytesDe64(b64); formato = 'jpg'; }
   }
+  await publicarDocumento(persona, datos, { titulo, clase, formato, tamano: datos.length });
+  descifrarMetas();
+}
+/** Cifra con una clave nueva, lo sube y le deja la clave a cada dispositivo autorizado (y al mío). */
+async function publicarDocumento(persona, datos, metaObj, fecha) {
   const clave = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   const id = nuevoID('doc');
-  const meta = b64De(await Cifra.sellar(new TextEncoder().encode(JSON.stringify({ titulo, clase, formato, tamano: datos.length })), clave));
+  const meta = b64De(await Cifra.sellar(new TextEncoder().encode(JSON.stringify(metaObj)), clave));
   const sellado = await Cifra.sellar(datos, clave);
   clavesDoc.set(id, clave);
   const chico = sellado.length <= 550000;
-  const d = Nuevo.documento(id, persona, meta, chico ? b64De(sellado) : undefined);
+  const d = { ...Nuevo.documento(id, persona, meta, chico ? b64De(sellado) : undefined), ...(fecha ? { fecha } : {}) };
   if (!chico && a.esDemo) docsDemo.set(id, sellado);
   await enviar('documento', d, chico || a.esDemo ? undefined : new Blob([sellado], { type: 'application/octet-stream' }));
   const l = await llaveLocal.cargar();
@@ -545,9 +557,44 @@ async function subirDocumento(persona, titulo, clase, file) {
   if (!para.some(x => x.id === miLlaveID(l))) para.push({ id: miLlaveID(l), publica: l.publica });
   for (const x of para) {
     accesosEnviados.add(`ac-${id}-${x.id}`);
-    guardar('acceso', Nuevo.acceso(id, x.id, b64De(await Cifra.envolver(clave, bytesDe64(x.publica)))));
+    await enviar('acceso', Nuevo.acceso(id, x.id, b64De(await Cifra.envolver(clave, bytesDe64(x.publica)))));
   }
-  descifrarMetas();
+  return id;
+}
+/** Si un documento que subí yo tiene la clave en un dispositivo que ya no está autorizado (eligió mal un perfil,
+ *  lo liberaron, todavía no lo confirmaron o dejó de organizar), lo vuelvo a cifrar con una clave nueva y borro el viejo:
+ *  la clave que se llevó ya no abre nada. */
+const rotando = new Set();
+async function revocarAccesosDeMas() {
+  if (!a.soyAdmin || a.esDemo || !a.viajeID) return;
+  for (const d of [...a.documentos]) {
+    if (d.autor !== a.yo || rotando.has(d.id)) continue;
+    const ok = new Set(llavesAutorizadas(d).map(l => l.id));
+    const l = await llaveLocal.cargar();
+    ok.add(miLlaveID(l));
+    if (!Object.values(a.accesos).some(x => x.documento === d.id && !ok.has(x.llave))) continue;
+    rotando.add(d.id);
+    try { await rotarDocumento(d); } catch (e) { rotando.delete(d.id); console.warn('No se pudo volver a cifrar', d.id, e); }
+  }
+}
+async function rotarDocumento(d) {
+  const k = await claveDoc(d);
+  if (!k) return;
+  let sellado = d.contenido ? bytesDe64(d.contenido) : null;
+  if (!sellado) sellado = new Uint8Array(await (await fetch(await a.servidor.archivoURL(d.id))).arrayBuffer());
+  const datos = await Cifra.abrir(sellado, k);
+  const meta = JSON.parse(new TextDecoder().decode(await Cifra.abrir(bytesDe64(d.meta), k)));
+  const nuevo = await publicarDocumento(d.persona, datos, meta, d.fecha);
+  metasDoc.set(nuevo, meta);
+  // El viejo se borra entero (con su archivo) y también las copias de la clave que dejé yo.
+  const viejos = [...a.sobres.values()].filter(s => !s.borrado && s.autor === a.yo && (s.id === d.id || (s.tipo === 'acceso' && s.datos?.documento === d.id)));
+  for (const s of viejos) {
+    const t = { ...s, datos: {}, borrado: true, modificado: ahora() };
+    ingerir([t]);
+    try { await a.servidor.guardar(t, a.viajeID, null, null); } catch {}
+  }
+  if (a.servidor.db) { try { await a.servidor.db.deleteRecords([d.id]); } catch {} }
+  clavesDoc.delete(d.id); metasDoc.delete(d.id);
 }
 const docsDemo = new Map();
 async function abrirDocumento(id) {
@@ -667,7 +714,7 @@ async function sincronizar() {
     if (a.error?.startsWith('Sin conexión con el grupo')) a.error = null;
     ingerir(nuevos);
     aprobarPendientesSolos();
-    publicarMiLlave().then(compartirDocumentos).then(descifrarMetas).catch(() => {});
+    publicarMiLlave().then(revocarAccesosDeMas).then(compartirDocumentos).then(descifrarMetas).catch(() => {});
   } catch (e) {
     a.error = `Sin conexión con el grupo: ${mensajeError(e)}`;
     render();
@@ -773,9 +820,15 @@ function reconstruir() {
   const libs = de('liberacion').filter(l => a.organizadores.has(l.autor));
   const recs = de('reclamo').filter(r => ids.has(r.ficha) && a.miembros[r.autor] && !libs.some(l => l.ficha === r.ficha && l.usuario === r.autor && l.fecha >= r.fecha))
     .sort((x, y) => x.fecha - y.fecha || x.autor.localeCompare(y.autor));
-  a.duenoFicha = {}; a.fichaDe = {};
-  for (const r of recs) if (!a.duenoFicha[r.ficha] && !a.fichaDe[r.autor]) { a.duenoFicha[r.ficha] = r.autor; a.fichaDe[r.autor] = r.ficha; }
+  a.duenoFicha = {}; a.fichaDe = {}; a.quienFicha = {};
+  for (const r of recs) if (!a.duenoFicha[r.ficha] && !a.fichaDe[r.autor]) { a.duenoFicha[r.ficha] = r.autor; a.fichaDe[r.autor] = r.ficha; if (r.quien) a.quienFicha[r.ficha] = r.quien; }
   a.miReclamoPerdido = !a.fichaDe[a.yo] && vivos.some(s => s.tipo === 'reclamo' && s.autor === a.yo);
+  // Elegir un perfil no alcanza para ver sus documentos: un organizador tiene que confirmar que es esa persona
+  // (si lo eligió un organizador, vale solo). Una confirmación anterior a una liberación ya no cuenta.
+  const confs = de('confirmacion').filter(c => a.organizadores.has(c.autor));
+  a.confirmada = {};
+  for (const [f, u] of Object.entries(a.duenoFicha))
+    if (a.organizadores.has(u) || confs.some(c => c.ficha === f && c.usuario === u && !libs.some(l => l.ficha === f && l.usuario === u && l.fecha >= c.fecha))) a.confirmada[f] = u;
   // Documentos: solo los ven el dueño y los organizadores (y van cifrados igual).
   a.llaves = de('llave').filter(l => a.miembros[l.autor]);
   a.accesos = Object.fromEntries(de('acceso').map(x => [x.id, x]));
@@ -1839,7 +1892,7 @@ function vOrganizar() {
     <p class="pie">Cualquier organizador puede aprobar gente, nombrar o quitar organizadores, editar el viaje y ocultar cosas. Al que creó el viaje no se lo puede quitar.</p>
 
     <div class="seccion-t">¿Quién sos? · perfiles del viaje</div>
-    <div class="lista"><button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="seccion" data-s="perfiles">${a.fichas.length ? `${a.fichas.length} perfiles · ${a.fichas.filter(f => a.duenoFicha[f.id]).length} ya eligieron el suyo ›` : 'Cargar las caras y los apodos ›'}</button></div>
+    <div class="lista"><button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="seccion" data-s="perfiles">${a.fichas.length ? (a.porConfirmar.length ? `⚠️ ${a.porConfirmar.length} ${a.porConfirmar.length === 1 ? 'perfil' : 'perfiles'} por confirmar ›` : `${a.fichas.length} perfiles · ${a.fichas.filter(f => a.duenoFicha[f.id]).length} ya eligieron el suyo ›`) : 'Cargar las caras y los apodos ›'}</button></div>
     <p class="pie">El que entra con el link elige su cara y entra directo, sin aprobación, con ese nombre y esa foto.</p>
 
     <div class="seccion-t">El viaje</div>
@@ -1872,12 +1925,13 @@ function vPerfiles() {
     ${a.fichas.length ? `<div class="lista">${a.fichas.map(f => {
       const u = a.duenoFicha[f.id];
       return `<div class="fila" data-registro="${esc(f.id)}">${caraFicha(f, 44)}<span class="crece"><div class="t">${esc(f.nombre)}</div>
-        <div class="s" style="color:${u ? 'var(--verde)' : 'var(--tinta-2)'}">${u ? (u === a.yo ? 'Lo elegiste vos' : 'Ya lo eligió') : 'Libre'}</div></span>
+        <div class="s" style="color:${!u ? 'var(--tinta-2)' : a.confirmada[f.id] ? 'var(--verde)' : 'var(--acento)'}">${!u ? 'Libre' : u === a.yo ? 'Lo elegiste vos' : a.confirmada[f.id] ? `${a.quienFicha[f.id] ? `“${esc(a.quienFicha[f.id])}” · ` : ''}confirmado` : `Lo eligió ${a.quienFicha[f.id] ? `“${esc(a.quienFicha[f.id])}”` : 'alguien (sin nombre)'} · falta confirmar`}</div></span>
+        ${u && !a.confirmada[f.id] ? `<button class="boton chico" data-a="confirmar-ficha" data-id="${esc(f.id)}">Confirmar</button>` : ''}
         ${u ? `<button class="boton gris chico" data-a="liberar" data-id="${esc(f.id)}">Liberar</button>` : ''}
         ${f.autor === a.yo ? `<button class="icono-b" data-a="editar-ficha" data-id="${esc(f.id)}" aria-label="Editar">✎</button>` : ''}
         ${f.autor === a.yo ? `<button class="borrar" data-a="borrar-ficha" data-id="${esc(f.id)}">✕</button>` : botonOcultar(f)}</div>`;
     }).join('')}</div>` : vacio('🪪', 'Sin perfiles todavía', 'Cargá la cara y el apodo de cada uno.')}
-    <p class="pie">Si alguien eligió mal, tocá Liberar: vuelve a la lista y esa persona tiene que elegir de nuevo.</p>`;
+    <p class="pie">Cuando alguien elige un perfil, entra al viaje pero no ve los documentos de ese perfil hasta que un organizador toque <b>Confirmar</b>. Si eligió mal, tocá <b>Liberar</b>: vuelve a la lista y sus documentos se vuelven a cifrar con una clave nueva.</p>`;
 }
 
 // ── Documentos
@@ -1890,6 +1944,7 @@ function vDocumentos() {
   const tam = n => n > 1e6 ? `${(n / 1e6).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
   return `${titulo('Documentos', '', volverA('volver-mas', 'Más'))}
     <div class="tarjeta renglon" style="gap:10px"><span style="font-size:20px">🔒</span><span class="chico">${a.soyAdmin ? 'Ves los documentos de todos porque organizás. Cada uno ve solo los suyos.' : 'Solo los ves vos y los organizadores. Van cifrados: ni con el código del viaje se pueden leer.'}</span></div>
+    ${a.fichaDe[a.yo] && !a.confirmada[a.fichaDe[a.yo]] ? `<div class="tarjeta chico">⏳ Tus documentos aparecen cuando un organizador confirme que sos <b>${esc(a.nombrePersona(a.fichaDe[a.yo]))}</b>.</div>` : ''}
     ${personas.map(p => {
       const docs = a.documentos.filter(d => d.persona === p), f = a.fichas.find(x => x.id === p);
       const mio = p === a.yo || p === a.fichaDe[a.yo];
@@ -2476,7 +2531,8 @@ const acciones = {
   'elegir-ficha': b => {
     const f = a.fichas.find(x => x.id === b.dataset.id);
     if (!f || !confirm(`¿Sos ${f.nombre}?\n\nQueda atado a tu Apple ID y sale de la lista. Si te equivocás, un organizador lo puede liberar.`)) return;
-    elegirFicha(f); if (hoja) cerrarHoja(); render();
+    const quien = a.soyAdmin ? '' : (prompt('Tu nombre y apellido (para que un organizador confirme que sos vos y te lleguen tus documentos):') || '').trim().slice(0, 60);
+    elegirFicha(f, quien); if (hoja) cerrarHoja(); render();
   },
   'no-estoy': () => { noEstoy.abierto = true; hoja ? pintarHoja() : render(); },
   'no-estoy-ok': async () => {
@@ -2490,6 +2546,7 @@ const acciones = {
   'nueva-ficha': () => hojas.ficha(),
   'editar-ficha': b => hojas.ficha(a.fichas.find(f => f.id === b.dataset.id)),
   'borrar-ficha': b => { const f = a.fichas.find(x => x.id === b.dataset.id); if (f && confirm(`¿Borrar el perfil de ${f.nombre}?`)) borrar('ficha', f); },
+  'confirmar-ficha': b => { const f = a.fichas.find(x => x.id === b.dataset.id), u = f && a.duenoFicha[f.id]; if (f && u && confirm(`¿${a.quienFicha[f.id] ? `“${a.quienFicha[f.id]}”` : 'La persona que lo eligió'} es ${f.nombre}?\n\nAl confirmar le llegan los documentos de ${f.nombre} (por ejemplo, su seguro). Confirmá solo si estás seguro.`)) confirmarFicha(f); },
   liberar: b => { const f = a.fichas.find(x => x.id === b.dataset.id); if (f && confirm(`¿Liberar el perfil de ${f.nombre}?\nLa persona que lo eligió va a tener que elegir de nuevo (o pedir entrar).`)) liberarFicha(f); },
   'nuevo-doc': b => hojas.documento(b.dataset.p),
   'abrir-doc': b => abrirDocumento(b.dataset.id),
