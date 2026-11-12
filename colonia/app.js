@@ -69,7 +69,7 @@ const FECHAS = {
   viaje: ['inicio', 'fin', 'revelarA', 'avisoFecha'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
   juego: ['fecha'], puntaje: ['fecha'], equipos: ['fecha'], tarea: ['dia'], marca: ['fecha'], gasto: ['fecha'],
   evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'], valija: ['fecha'], decomiso: ['fecha'],
-  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [],
+  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'],
 };
 function codificar(tipo, obj) {
   const o = {};
@@ -101,6 +101,8 @@ const Nuevo = {
   // Cada organizador escribe su propia decisión sobre cada persona (en CloudKit cada uno solo puede tocar lo suyo); vale la más nueva.
   decision: (usuario, aprobado, admin) => ({ id: `d-${a.viajeID}-${usuario}-${a.yo}`, autor: '', usuario, aprobado, admin, fecha: ahora() }),
   oculto: (registro, oculto) => ({ id: `o-${registro}-${a.yo}`, autor: '', registro, oculto, fecha: ahora() }),
+  reporte: (registro, usuario, motivo) => ({ id: `rp-${registro}-${a.yo}`, autor: '', registro, usuario, motivo, fecha: ahora() }),
+  bloqueo: (usuario, bloqueado) => ({ id: `bl-${a.viajeID}-${a.yo}-${usuario}`, autor: '', usuario, bloqueado, fecha: ahora() }),
   ajustes: viaje => ({ id: `a-${a.viajeID}-${a.yo}`, autor: '', viaje, fecha: ahora() }),
   juego: (nombre, emoji, ganaMayor) => ({ id: nuevoID('j'), autor: '', nombre, emoji, ganaMayor, fecha: ahora() }),
   puntaje: (juego, jugador, puntos) => ({ id: nuevoID('p'), autor: '', juego, jugador, puntos, fecha: ahora() }),
@@ -289,7 +291,7 @@ const a = {
   leidosHasta: leerLS('leidosHasta', 0),
   viaje: null, miembros: {}, decisiones: {}, mensajes: [], ubicaciones: {}, juegos: [], puntajes: [], tareas: [], marcas: [],
   gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [], valijas: {}, decomisos: [],
-  organizadores: new Set(), ocultos: new Set(), ocultosLista: [],
+  organizadores: new Set(), ocultos: new Set(), ocultosLista: [], reportes: [], bloqueados: new Set(),
   fichas: [], duenoFicha: {}, fichaDe: {}, miReclamoPerdido: false, documentos: [], llaves: [], accesos: {},
   get fichasLibres() { return this.fichas.filter(f => !this.duenoFicha[f.id]); },
   /** Hay que mostrar "¿Quién sos?" sí o sí: entró con el link y no eligió (o perdió el que eligió). */
@@ -593,6 +595,18 @@ function anunciar(texto, enlace) {
   guardar('mensaje', Nuevo.mensaje(`${quien} ${texto}`, 'sistema', { enlace }));
 }
 
+/** Reportar un mensaje o una foto de otro: deja de verse para mí y les llega a los organizadores. */
+function reportar(registro, usuario) {
+  if (!usuario || usuario === a.yo) return;
+  guardar('reporte', Nuevo.reporte(registro, usuario, 'Ofensivo o inapropiado'));
+  avisar('Gracias. Ya no lo ves y les llegó a los organizadores.', true);
+}
+/** Bloquear (o desbloquear) a alguien: no veo más sus mensajes ni sus fotos. */
+function bloquear(usuario, si) {
+  if (!usuario || usuario === a.yo) return;
+  guardar('bloqueo', Nuevo.bloqueo(usuario, si));
+}
+
 function ocultar(registro, oculto) {
   if (!a.soyAdmin) return;
   guardar('oculto', Nuevo.oculto(registro, oculto));
@@ -727,6 +741,12 @@ function reconstruir() {
   const ocs = ultimaPor(de('oculto').filter(o => a.organizadores.has(o.autor)), 'registro');
   a.ocultosLista = Object.values(ocs).filter(o => o.oculto);
   a.ocultos = new Set(a.ocultosLista.map(o => o.registro));
+  // Reportar y bloquear: lo que reporté o lo de alguien que bloqueé deja de verse para mí.
+  a.bloqueados = new Set(Object.values(ultimaPor(de('bloqueo').filter(b => b.autor === a.yo), 'usuario')).filter(b => b.bloqueado).map(b => b.usuario));
+  const misReportes = new Set(de('reporte').filter(r => r.autor === a.yo).map(r => r.registro));
+  const existe = new Set(vivos.map(s => s.id));
+  a.reportes = a.organizadores.has(a.yo)
+    ? de('reporte').filter(r => a.miembros[r.autor] && !a.ocultos.has(r.registro) && existe.has(r.registro)).sort((x, y) => y.fecha - x.fecha) : [];
 
   // Perfiles armados: los cargan los organizadores. Cada uno es del primero que lo eligió (y no lo liberaron).
   a.fichas = de('ficha').filter(f => a.organizadores.has(f.autor) && !a.ocultos.has(f.id)).sort((x, y) => (x.orden ?? 0) - (y.orden ?? 0) || x.nombre.localeCompare(y.nombre));
@@ -746,7 +766,8 @@ function reconstruir() {
   }).sort((x, y) => y.fecha - x.fecha);
 
   const ok = x => a.cuenta(x.autor) && !a.ocultos.has(x.id);
-  a.mensajes = de('mensaje').filter(ok).sort((x, y) => x.fecha - y.fecha);
+  const visible = x => ok(x) && !a.bloqueados.has(x.autor) && !misReportes.has(x.id);
+  a.mensajes = de('mensaje').filter(visible).sort((x, y) => x.fecha - y.fecha);
   a.ubicaciones = {};
   for (const u of de('ubicacion').filter(u => ok(u) && (a.miembros[u.autor]?.comparteUbicacion ?? true))) {
     const x = a.ubicaciones[u.autor];
@@ -760,7 +781,7 @@ function reconstruir() {
   a.eventos = de('evento').filter(ok).sort((x, y) => x.inicio - y.inicio);
   a.encuestas = de('encuesta').filter(ok).sort((x, y) => y.fecha - x.fecha);
   a.votos = de('voto').filter(ok);
-  a.fotos = de('foto').filter(ok).sort((x, y) => y.fecha - x.fecha);
+  a.fotos = de('foto').filter(visible).sort((x, y) => y.fecha - x.fecha);
   a.sorteos = de('equipos').filter(ok).sort((x, y) => y.fecha - x.fecha);
   a.valijas = {};
   for (const v of de('valija').filter(v => a.cuenta(v.autor))) if (!a.valijas[v.autor] || v.fecha > a.valijas[v.autor].fecha) a.valijas[v.autor] = v;
@@ -1037,7 +1058,8 @@ function vBienvenida() {
       <label class="et">Tu color</label>
       <div class="colores">${COLORES.map((c, i) => `<button data-a="b-color" data-i="${i}" style="--c:${c}" class="${i === borrador.color ? 'si' : ''}" aria-label="Color ${i + 1}"></button>`).join('')}</div>
     </div>
-    <button class="boton ancho" style="margin-top:18px" data-a="empezar" ${borrador.nombre.trim() ? '' : 'disabled'}>Empezar</button>`;
+    <button class="boton ancho" style="margin-top:18px" data-a="empezar" ${borrador.nombre.trim() ? '' : 'disabled'}>Empezar</button>
+    <p class="pie" style="text-align:center">Al usar Colonia aceptás no publicar nada ofensivo ni abusivo. Cualquiera puede reportar un mensaje o una foto, o bloquear a otra persona.</p>`;
 }
 
 function bannerApp() {
@@ -1268,7 +1290,7 @@ function burbuja(m, mostrarNombre) {
   } else cont = esc(m.texto);
   return `<div class="msj ${mio ? 'mio' : ''} ${mostrarNombre ? 'nuevo-autor' : ''}">
     ${mio ? '' : `<span style="visibility:${mostrarNombre ? 'visible' : 'hidden'}">${av(m.autor, 28)}</span>`}
-    <div class="burbuja">${!mio && mostrarNombre ? `<div class="quien" style="color:${a.color(m.autor)}">${esc(a.nombre(m.autor))}</div>` : ''}${cont}<div class="hora">${hora(m.fecha)}${a.soyAdmin && !mio ? ` · <button class="ocultar-msj" data-a="ocultar" data-id="${esc(m.id)}" data-confirmar="¿Ocultar este mensaje para todos?">ocultar</button>` : ''}</div></div></div>`;
+    <div class="burbuja">${!mio && mostrarNombre ? `<div class="quien" style="color:${a.color(m.autor)}">${esc(a.nombre(m.autor))}</div>` : ''}${cont}<div class="hora">${hora(m.fecha)}${!mio && m.clase !== 'sistema' ? ` · <button class="ocultar-msj" data-a="reportar" data-id="${esc(m.id)}" data-u="${esc(m.autor)}">reportar</button>` : ''}${a.soyAdmin && !mio ? ` · <button class="ocultar-msj" data-a="ocultar" data-id="${esc(m.id)}" data-confirmar="¿Ocultar este mensaje para todos?">ocultar</button>` : ''}</div></div></div>`;
 }
 
 const redactar = {
@@ -1637,7 +1659,7 @@ async function verFoto(id) {
   el.innerHTML = `<img src="data:image/jpeg;base64,${f.miniatura}" alt="">
     <div class="arriba">${av(f.autor, 32)}<div class="crece"><b>${esc(a.nombre(f.autor))}</b><div style="font-size:12px;opacity:.8">${fmt(f.fecha, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>
       <span class="cargando"></span>
-      ${f.autor === a.yo ? '<button data-v="borrar" title="Borrar">🗑</button>' : a.soyAdmin ? '<button data-v="ocultar" title="Ocultar para todos" style="font-size:14px">Ocultar</button>' : ''}<button data-v="cerrar" title="Cerrar">✕</button></div>`;
+      ${f.autor === a.yo ? '<button data-v="borrar" title="Borrar">🗑</button>' : `<button data-v="reportar" title="Reportar" style="font-size:14px">Reportar</button><button data-v="bloquear" title="Bloquear" style="font-size:14px">Bloquear</button>${a.soyAdmin ? '<button data-v="ocultar" title="Ocultar para todos" style="font-size:14px">Ocultar</button>' : ''}`}<button data-v="cerrar" title="Cerrar">✕</button></div>`;
   document.body.appendChild(el);
   const img = el.querySelector('img');
   let escala = 1;
@@ -1647,6 +1669,8 @@ async function verFoto(id) {
     if (b?.dataset.v === 'cerrar' || e.target === el) el.remove();
     if (b?.dataset.v === 'borrar' && confirm('¿Borrar la foto?')) { borrar('foto', f); el.remove(); }
     if (b?.dataset.v === 'ocultar' && confirm('¿Ocultar la foto para todos? La podés volver a mostrar desde Organizar.')) { ocultar(f.id, true); el.remove(); }
+    if (b?.dataset.v === 'reportar' && confirm('¿Reportar esta foto? Deja de verse para vos y les llega a los organizadores.')) { reportar(f.id, f.autor); el.remove(); }
+    if (b?.dataset.v === 'bloquear' && confirm(`¿Bloquear a ${a.nombre(f.autor)}? No vas a ver más sus mensajes ni sus fotos. Lo podés deshacer en Grupo.`)) { bloquear(f.autor, true); el.remove(); }
   });
   const url = a.esDemo ? fotosDemo.get(id) : await a.servidor.archivoURL(id).catch(() => null);
   el.querySelector('.cargando')?.remove();
@@ -1699,6 +1723,7 @@ function vGrupo() {
       <label class="fila interruptor" style="padding:11px 14px"><span>Compartir mi ubicación<div class="mini">Desde la web se comparte solo con la página abierta${ubicacion.error === 'denegada' ? '. ⚠️ El navegador no tiene permiso de ubicación' : ''}.</div></span><input type="checkbox" data-a="comparto" ${ubicacion.comparto ? 'checked' : ''}></label>
       ${notis === 'default' ? '<button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="notis">🔔 Avisarme de mensajes nuevos</button>' : ''}
     </div>
+    ${a.bloqueados.size ? `<div class="seccion-t">Bloqueados</div><div class="lista">${[...a.bloqueados].map(u => `<div class="fila">${av(u, 30)}<span class="crece">${esc(a.nombre(u))}</span><button class="enlace" style="font-size:13px" data-a="desbloquear" data-u="${esc(u)}">Desbloquear</button></div>`).join('')}</div><p class="pie">No ves sus mensajes ni sus fotos. No se enteran.</p>` : ''}
     <div class="lista" style="margin-top:16px">
       ${a.soyAdmin && a.yo !== a.creador ? '<button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="dejar-organizar">Dejar de organizar</button>' : ''}
       <button class="fila" style="width:100%;text-align:left;color:var(--rojo)" data-a="salir" >${a.esDemo ? 'Salir del viaje de ejemplo' : 'Salir del viaje'}</button>
@@ -1757,6 +1782,13 @@ function vOrganizar() {
 
     <div class="seccion-t">El viaje</div>
     <div class="lista"><button class="fila" style="width:100%;text-align:left;color:var(--acento)" data-a="editar-viaje">Editar nombre, destino, moneda, sorpresa y fotos en Drive ›</button></div>
+
+    <div class="seccion-t">Reportes · ${a.reportes.length}</div>
+    ${a.reportes.length ? `<div class="lista">${a.reportes.map(r => {
+      const d = descripcion(r.registro);
+      return `<div class="fila"><span style="font-size:20px">${d.ico}</span><span class="crece"><div class="t">${esc(d.texto)}</div><div class="s">${d.quien ? `De ${esc(d.quien)} · ` : ''}lo reportó ${esc(a.nombre(r.autor))} ${haceCuanto(r.fecha)}</div></span>
+        <button class="enlace" style="font-size:13px" data-a="ocultar" data-id="${esc(r.registro)}">Ocultar</button>${r.usuario !== a.creador && a.miembros[r.usuario] ? `<button class="enlace" style="font-size:13px;color:var(--rojo)" data-a="sacar-reportado" data-u="${esc(r.usuario)}">Sacar</button>` : ''}</div>`;
+    }).join('')}</div>` : '<p class="pie">Nadie reportó nada. Cualquiera puede reportar un mensaje o una foto de otro.</p>'}
 
     <div class="seccion-t">Cosas ocultas · ${a.ocultosLista.length}</div>
     ${a.ocultosLista.length ? `<div class="lista">${a.ocultosLista.sort((x, y) => y.fecha - x.fecha).map(o => {
@@ -2403,6 +2435,15 @@ const acciones = {
   'sacar-aviso': () => { if (confirm('¿Sacar el aviso fijo?')) guardarViaje({ ...a.viaje, aviso: undefined, avisoFecha: undefined, avisoAutor: undefined }); },
   ocultar: b => { if (!b.dataset.confirmar || confirm(b.dataset.confirmar)) ocultar(b.dataset.id, true); },
   mostrar: b => ocultar(b.dataset.id, false),
+  reportar: b => {
+    const u = b.dataset.u;
+    const r = prompt(`¿Qué querés hacer con este mensaje de ${a.nombre(u)}?\n1 = Reportarlo\n2 = Reportarlo y bloquear a ${a.nombre(u)}`, '1');
+    if (r === null) return;
+    reportar(b.dataset.id, u);
+    if (r.trim() === '2') bloquear(u, true);
+  },
+  desbloquear: b => bloquear(b.dataset.u, false),
+  'sacar-reportado': b => { if (confirm(`¿Sacar a ${a.nombre(b.dataset.u)} del viaje?`)) decidir(b.dataset.u, false); },
   compartir: async () => {
     const texto = textoInvitacion();
     if (navigator.share) { try { await navigator.share({ text: texto }); } catch {} }
