@@ -69,7 +69,7 @@ const FECHAS = {
   viaje: ['inicio', 'fin', 'revelarA', 'avisoFecha'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
   juego: ['fecha'], puntaje: ['fecha'], equipos: ['fecha'], tarea: ['dia'], marca: ['fecha'], gasto: ['fecha'],
   evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'], valija: ['fecha'], decomiso: ['fecha'],
-  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], confirmacion: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'], mvp: ['fecha'],
+  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], confirmacion: ['fecha'], habitaciones: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'], mvp: ['fecha'],
 };
 function codificar(tipo, obj) {
   const o = {};
@@ -114,6 +114,7 @@ const Nuevo = {
   evento: (titulo, inicio, lugar, nota, latitud, longitud) => ({ id: nuevoID('e'), autor: '', titulo, inicio, lugar, nota, latitud, longitud }),
   encuesta: (pregunta, opciones, multiple) => ({ id: nuevoID('enc'), autor: '', pregunta, opciones, multiple, cerrada: false, fecha: ahora() }),
   voto: (encuesta, elegidas, cambios) => ({ id: `v-${encuesta}-${a.yo}`, autor: '', encuesta, elegidas, cambios }),
+  habitaciones: lista => ({ id: nuevoID('hab'), autor: '', lista, fecha: ahora() }),
   valija: tildados => ({ id: `val-${a.viajeID}-${a.yo}`, autor: '', tildados, fecha: ahora() }),
   decomiso: (persona, item, multa, nota, miniatura) => ({ id: nuevoID('dec'), autor: '', persona, item, multa, nota, miniatura, fecha: ahora() }),
   // Perfiles armados ("¿Quién sos?") y documentos cifrados (ver Modelo.swift)
@@ -293,7 +294,7 @@ const a = {
   desde: null,
   leidosHasta: leerLS('leidosHasta', 0),
   viaje: null, miembros: {}, decisiones: {}, mensajes: [], ubicaciones: {}, juegos: [], puntajes: [], tareas: [], marcas: [],
-  gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [], valijas: {}, decomisos: [],
+  gastos: [], eventos: [], encuestas: [], votos: [], fotos: [], sorteos: [], valijas: {}, decomisos: [], habitaciones: [],
   organizadores: new Set(), ocultos: new Set(), ocultosLista: [], reportes: [], bloqueados: new Set(), votosMVP: {},
   fichas: [], duenoFicha: {}, fichaDe: {}, confirmada: {}, miReclamoPerdido: false, documentos: [], llaves: [], accesos: {},
   get fichasLibres() { return this.fichas.filter(f => !this.duenoFicha[f.id]); },
@@ -860,6 +861,8 @@ function reconstruir() {
   a.valijas = {};
   for (const v of de('valija').filter(v => a.cuenta(v.autor))) if (!a.valijas[v.autor] || v.fecha > a.valijas[v.autor].fecha) a.valijas[v.autor] = v;
   a.decomisos = de('decomiso').filter(ok).sort((x, y) => y.fecha - x.fecha);
+  // Habitaciones: vale la última versión que cargó un organizador.
+  a.habitaciones = de('habitaciones').filter(h => a.organizadores.has(h.autor)).sort((x, y) => y.fecha - x.fecha)[0]?.lista ?? [];
   revisarRevelacion();
 }
 
@@ -1078,7 +1081,7 @@ function render() {
     conPestanas = true;
     if (ui.pestana === CHAT) { html = vChat(); clase = 'chat'; }
     else if (ui.pestana === RANKING) html = ui.juego ? vJuego() : vJuegos();
-    else html = ui.seccion ? ({ mapa: vMapa, tareas: vTareas, gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, valija: vValija, grupo: vGrupo, organizar: vOrganizar, documentos: vDocumentos, perfiles: vPerfiles })[ui.seccion]() : vMas();
+    else html = ui.seccion ? ({ mapa: vMapa, tareas: vTareas, gastos: vGastos, agenda: vAgenda, votaciones: vVotaciones, fotos: vFotos, valija: vValija, grupo: vGrupo, organizar: vOrganizar, documentos: vDocumentos, perfiles: vPerfiles, habitaciones: vHabitaciones })[ui.seccion]() : vMas();
   }
 
   const scrollAntes = window.scrollY;
@@ -1531,9 +1534,48 @@ function vMas() {
       ${mos('fotos', '🖼️', 'Fotos', 'var(--rosa)', `${a.fotos.length} fotos`)}
       ${mos('valija', '🧳', 'Valija', '#8B5E3C', `${prendasDe(a.yo)} de ${TOTAL_PRENDAS} prendas${a.decomisos.length ? ` · ${a.decomisos.length} ${a.decomisos.length === 1 ? 'decomiso' : 'decomisos'}` : ''}`)}
       ${(n => mos('documentos', '🔒', 'Documentos', '#1A9E8F', !n ? 'Seguro, pasajes… (privado)' : a.soyAdmin ? `${n} cargados` : n === 1 ? '1 documento tuyo' : `${n} documentos tuyos`))(a.documentos.length)}
+      ${a.habitaciones.length || a.soyAdmin ? mos('habitaciones', '🛏️', 'Habitaciones', '#5B6CD9', (h => h ? `Estás en la ${h.nombre}` : a.habitaciones.length ? `${a.habitaciones.length} habitaciones` : 'Cargar la distribución')(miHabitacion())) : ''}
       ${mos('grupo', '👥', 'Grupo', 'var(--acento)', a.soyAdmin && pend ? `${pend} esperando ✋` : `${a.aprobados.length} personas`)}
       ${a.soyAdmin ? mos('organizar', '⭐️', 'Organizar', '#E8920C', a.viaje.entradaCerrada ? 'Entrada pausada' : a.ocultosLista.length ? `${a.ocultosLista.length} ocultas` : 'Entrada, aviso, organizadores') : ''}
     </div>`;
+}
+
+// ── Habitaciones
+
+const normal = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/y$/, 'i');
+/** A quién corresponde un nombre de la lista: un perfil armado o alguien del viaje (por apodo, sin tildes). */
+function quienEs(nombre) {
+  const n = normal(nombre);
+  const f = a.fichas.find(x => normal(x.nombre) === n);
+  if (f) return { ficha: f, usuario: a.duenoFicha[f.id] };
+  const m = a.aprobados.find(x => normal(x.nombre) === n);
+  return m ? { usuario: m.autor } : {};
+}
+function miHabitacion() {
+  return a.habitaciones.find(h => h.personas.some(p => { const q = quienEs(p); return q.usuario === a.yo || (q.ficha && q.ficha.id === a.fichaDe[a.yo]); }));
+}
+function vHabitaciones() {
+  const mia = miHabitacion();
+  const cara = p => { const q = quienEs(p); return q.ficha ? caraFicha(q.ficha, 40) : q.usuario ? av(q.usuario, 40) : `<span class="av" style="--c:${color(0)};width:40px;height:40px;font-size:18px">${esc(p.slice(0, 1))}</span>`; };
+  const texto = a.habitaciones.map(h => `${h.nombre}: ${h.personas.join(', ')}`).join('\n');
+  return `${titulo('Habitaciones', a.soyAdmin ? `<button class="boton suave chico" data-a="editar-hab">${ui.editandoHab ? 'Cancelar' : '✎ Editar'}</button>` : '', volverA('volver-mas', 'Más'))}
+    ${ui.editandoHab ? `<div class="tarjeta"><p class="chico" style="margin:0 0 8px">Una habitación por renglón: <b>Nombre: apodo, apodo, apodo</b>. Los apodos se reconocen solos y muestran la cara.</p>
+      <textarea id="hab-texto" rows="9" style="width:100%;font:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--linea);background:var(--tarjeta);color:inherit" placeholder="Habitación 1: Joni, Joti, Tati">${esc(texto)}</textarea>
+      <button class="boton" style="margin-top:10px;width:100%" data-a="guardar-hab">Guardar</button></div>` : ''}
+    ${!a.habitaciones.length ? vacio('🛏️', 'Todavía no hay habitaciones', a.soyAdmin ? 'Tocá Editar y cargá la distribución.' : 'Cuando los organizadores la carguen, aparece acá.') : `
+    ${mia ? `<div class="tarjeta renglon" style="gap:10px"><span style="font-size:22px">🛏️</span><span>Estás en la <b>${esc(mia.nombre)}</b>${mia.personas.length > 1 ? ` con ${esc(mia.personas.filter(p => { const q = quienEs(p); return q.usuario !== a.yo && !(q.ficha && q.ficha.id === a.fichaDe[a.yo]); }).join(' y '))}` : ''}.</span></div>` : ''}
+    <div class="seccion-t">${a.habitaciones.length} habitaciones · ${a.habitaciones.reduce((t, h) => t + h.personas.length, 0)} personas</div>
+    <div class="lista">${a.habitaciones.map(h => `<div class="fila" style="flex-direction:column;align-items:stretch;gap:10px${h === mia ? ';background:rgba(91,108,217,.12)' : ''}">
+      <b>${esc(h.nombre)}${h === mia ? ' · la tuya' : ''}</b>
+      <div class="renglon" style="gap:14px;flex-wrap:wrap">${h.personas.map(p => `<span class="renglon" style="flex-direction:column;gap:4px;align-items:center;min-width:56px">${cara(p)}<span class="chico">${esc(p)}</span></span>`).join('')}</div>
+    </div>`).join('')}</div>`}`;
+}
+function guardarHabitaciones(texto) {
+  const lista = texto.split('\n').map(l => l.trim()).filter(Boolean).map((l, i) => {
+    const [nombre, resto] = l.includes(':') ? [l.slice(0, l.indexOf(':')).trim(), l.slice(l.indexOf(':') + 1)] : [`Habitación ${i + 1}`, l];
+    return { nombre, personas: resto.split(/[,·\/]| y /).map(x => x.trim()).filter(Boolean) };
+  }).filter(h => h.personas.length);
+  guardar('habitaciones', Nuevo.habitaciones(lista));
 }
 
 // ── Gastos
@@ -2482,6 +2524,8 @@ const acciones = {
   'ocultar-hechas': () => { ui.ocultarHechas = !ui.ocultarHechas; render(); },
   // Más
   seccion: b => { ui.seccion = b.dataset.s; ui.cambioDeVista = true; history.pushState({ v: ui.seccion }, ''); render(); },
+  'editar-hab': () => { ui.editandoHab = !ui.editandoHab; render(); },
+  'guardar-hab': () => { const t = document.getElementById('hab-texto')?.value ?? ''; guardarHabitaciones(t); ui.editandoHab = false; render(); avisar('Habitaciones guardadas', true); },
   'volver-mas': () => { ui.seccion = null; ui.cambioDeVista = true; render(); },
   'nuevo-gasto': () => hojas.gasto(),
   'tocar-saldo': b => { ui.saldoTocado = ui.saldoTocado === b.dataset.u ? null : b.dataset.u; render(); },
