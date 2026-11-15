@@ -69,7 +69,7 @@ const FECHAS = {
   viaje: ['inicio', 'fin', 'revelarA', 'avisoFecha'], miembro: ['pedido'], decision: ['fecha'], mensaje: ['fecha'], ubicacion: ['fecha'],
   juego: ['fecha'], puntaje: ['fecha'], equipos: ['fecha'], tarea: ['dia'], marca: ['fecha'], gasto: ['fecha'],
   evento: ['inicio'], encuesta: ['fecha'], voto: [], foto: ['fecha'], oculto: ['fecha'], ajustes: ['fecha'], valija: ['fecha'], decomiso: ['fecha'],
-  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], confirmacion: ['fecha'], habitaciones: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'], mvp: ['fecha'],
+  ficha: ['fecha'], reclamo: ['fecha'], liberacion: ['fecha'], confirmacion: ['fecha'], habitaciones: ['fecha'], pushaviso: ['fecha'], llave: ['fecha'], documento: ['fecha'], acceso: [], reporte: ['fecha'], bloqueo: ['fecha'], mvp: ['fecha'],
 };
 function codificar(tipo, obj) {
   const o = {};
@@ -738,6 +738,14 @@ async function enviar(tipo, valor, archivo) {
   const s = { id: datos.id, tipo, autor: a.yo, datos, borrado: false, modificado: ahora() };
   ingerir([s]);
   await a.servidor.guardar(s, a.viajeID, resumen(tipo, datos), archivo);
+  // Notificación en iOS: solo los mensajes de los organizadores (salvo que el viaje deje avisar a todos).
+  if (tipo === 'mensaje' && (a.soyAdmin || a.viaje?.avisosTodos === true)) {
+    const texto = resumen(tipo, datos);
+    if (texto) {
+      const p = { id: nuevoID('pa'), autor: a.yo, mensaje: datos.id, fecha: ahora() };
+      a.servidor.guardar({ id: p.id, tipo: 'pushaviso', autor: a.yo, datos: p, borrado: false, modificado: ahora() }, a.viajeID, texto, null).catch(() => {});
+    }
+  }
 }
 
 /** El texto del aviso push que les llega a los que usan la app (CloudKit lo arma con este campo). */
@@ -1920,6 +1928,7 @@ function vOrganizar() {
     <div class="tarjeta">
       <label class="interruptor" style="padding-top:0"><span>Aceptar gente nueva<div class="mini">Apagado: el link no deja pedir para entrar.</div></span><input type="checkbox" data-a="entrada" ${v.entradaCerrada ? '' : 'checked'}></label>
       <label class="interruptor" style="padding-bottom:0"><span>Aprobar solos a los que entren con el link<div class="mini">Sin esperar a que un organizador los acepte.</div></span><input type="checkbox" data-a="auto-aprobar" ${v.autoAprobar ? 'checked' : ''}></label>
+      <label class="interruptor" style="padding-bottom:0"><span>Notificar los mensajes de todos<div class="mini">Apagado: en el iPhone solo llegan notificaciones de los mensajes de los organizadores. Todos pueden escribir igual.</div></span><input type="checkbox" data-a="avisos-todos" ${v.avisosTodos ? 'checked' : ''}></label>
     </div>
     ${a.pendientes.length ? `<div class="seccion-t">Quieren sumarse · ${a.pendientes.length}</div>${listaPendientes()}` : ''}
 
@@ -2676,6 +2685,7 @@ document.addEventListener('change', e => {
   if (e.target.matches('[data-a=comparto]')) acciones.comparto(e.target);
   if (e.target.matches('[data-a=entrada]')) guardarViaje({ ...a.viaje, entradaCerrada: e.target.checked ? undefined : true });
   if (e.target.matches('[data-a=auto-aprobar]')) guardarViaje({ ...a.viaje, autoAprobar: e.target.checked || undefined });
+  if (e.target.matches('[data-a=avisos-todos]')) guardarViaje({ ...a.viaje, avisosTodos: e.target.checked || undefined });
   if (e.target.matches('[data-subir-fotos]')) { subirFotos([...e.target.files]); e.target.value = ''; }
   if (e.target.matches('[data-mvp]') && e.target.value) votarMVP(e.target.value);
   if (e.target.matches('[data-cargar-fichas]')) { cargarFichas([...e.target.files]); e.target.value = ''; }
