@@ -11,6 +11,7 @@ window.SSCG_EN = {
 
   'apps.t': 'An app for every moment.',
   'more': 'Learn more',
+  'store': 'Download on the App Store',
   'try': 'Try on TestFlight',
   'soon': 'Coming soon to TestFlight',
   'soon.mac': 'Coming soon to download',
