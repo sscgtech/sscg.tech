@@ -3,6 +3,19 @@
     <channel>
         <title>Express Gestures</title>
         <item>
+            <title>1.0.3</title>
+            <pubDate>Thu, 26 Nov 2026 09:47:57 -0300</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://sscg.tech/express-gestures/descargas/Express-Gestures-1.0.3.zip" length="1977684" type="application/octet-stream" sparkle:edSignature="OWENSBd6lMR0ELwbmcsmMV7L1fhMkg9DAf+qhWcEEM9STPYiMBYVz6CIfREKroMpSLxzUjCJAevQf+F4Ajz6Ag=="/>
+            <sparkle:deltas>
+                <enclosure url="https://sscg.tech/express-gestures/descargas/Express%20Gestures4-3.delta" sparkle:deltaFrom="3" length="208990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976464" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="gJT4e58GWFjnecvwJ8HnJf+Kxe3XPMmQyYACbuHlPybTGLRJIPmCnq38zogtCv/4J+vJWBMf9YsC81+ZL3/bBg=="/>
+                <enclosure url="https://sscg.tech/express-gestures/descargas/Express%20Gestures4-2.delta" sparkle:deltaFrom="2" length="223054" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976464" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="6uYLZAwXAys/9HFmGQDOKSjDlY5LwTzZL+d+6S02lwv2E9pX93XjE5idY9+ZZBbbdrzFEot2izpHw+P3UALBCg=="/>
+                <enclosure url="https://sscg.tech/express-gestures/descargas/Express%20Gestures4-1.delta" sparkle:deltaFrom="1" length="222394" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976464" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="nOmpOb85JMraZyeCCVOom0o2a7vkZh3bVXq5Ejh1ukTDejmmNpqupgIdQFJA7CtP1Jq7o6Cpf4dDaHzUP/J+Dw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.0.2</title>
             <pubDate>Wed, 04 Nov 2026 03:35:43 -0300</pubDate>
             <sparkle:version>3</sparkle:version>
@@ -24,14 +37,6 @@
             <sparkle:deltas>
                 <enclosure url="https://sscg.tech/express-gestures/descargas/Express%20Gestures2-1.delta" sparkle:deltaFrom="1" length="11402" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="976464" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="X25v5ASjsHQBhXBPmS0CYRwMiYJiHzyuN4Ff6hwgnARCF2GpF3+MnxXMapxom5lRVdiO+JCvLcO8qX8xTsFKAQ=="/>
             </sparkle:deltas>
-        </item>
-        <item>
-            <title>1.0.0</title>
-            <pubDate>Tue, 03 Nov 2026 21:27:11 -0300</pubDate>
-            <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://sscg.tech/express-gestures/descargas/Express-Gestures-1.0.0.zip" length="1774455" type="application/octet-stream" sparkle:edSignature="OA2iniDtl1zxhc15frnd66Bk8IptdmShu63y0sEhPHAVCk3F3Klv86GR5noR130R9aq6/5qjJn1JLC9KrPsoCg=="/>
         </item>
     </channel>
 </rss>
